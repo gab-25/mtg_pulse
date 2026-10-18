@@ -1,2 +1,2 @@
 # mtg_pulse
-MTG Pulsr
+MTG Pulse
