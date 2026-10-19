@@ -57,8 +57,8 @@ Card images are served by Scryfall (linked, not copied); the card page credits t
 | `ALLOWED_HOSTS` | comma-separated host names |
 | `CSRF_TRUSTED_ORIGINS` | comma-separated origins, e.g. `https://pulse.example.com` |
 
-HTTPS is expected to be terminated by the reverse proxy in front of the app, which
-must set `X-Forwarded-Proto`. With `DEBUG=0` session cookies are `Secure`.
+HTTPS is expected to be terminated by the reverse proxy in front of the app. With `DEBUG=0`
+session cookies are `Secure`.
 
 In compose, Postgres and the app are bound to `127.0.0.1` only: expose the app through the
 HTTPS proxy, never directly. The app has no login rate limiting of its own — configure it on

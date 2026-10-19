@@ -34,8 +34,6 @@ ALLOWED_HOSTS = env_list('ALLOWED_HOSTS')
 
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 
-# TLS is terminated by the reverse proxy in front of the app.
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 
