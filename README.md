@@ -45,7 +45,7 @@ publishes the guide (~02:40).
   and card images plus set names (Scryfall's daily bulk file, ~80 MB). Those two refreshes
   are best-effort: a failure is logged and never fails the import.
 
-Other commands: `compute_rising [--date YYYY-MM-DD]`, `sync_expansions`, `sync_scryfall`.
+Other commands: `compute_rising [--date YYYY-MM-DD]`.
 
 Card images are served by Scryfall (linked, not copied); the card page credits them.
 
