@@ -32,8 +32,8 @@ overwrites prices imported from Cardmarket.
 
 ## Daily import
 
-`python manage.py import_cardmarket` is a one-shot command meant to run once a day from a
-scheduler (planned: a Kubernetes CronJob) at about **04:30 Europe/Rome**, after Cardmarket
+`python manage.py import_cardmarket` is a one-shot command meant to run once a day from an
+external scheduler at about **04:30 Europe/Rome**, after Cardmarket
 publishes the guide (~02:40).
 
 - Idempotent: running it twice on the same day changes nothing.
@@ -53,12 +53,12 @@ Other commands: `compute_rising [--date YYYY-MM-DD]`, `sync_expansions`.
 | `ALLOWED_HOSTS` | comma-separated host names |
 | `CSRF_TRUSTED_ORIGINS` | comma-separated origins, e.g. `https://pulse.example.com` |
 
-HTTPS is expected to be terminated by the reverse proxy / ingress in front of the app, which
+HTTPS is expected to be terminated by the reverse proxy in front of the app, which
 must set `X-Forwarded-Proto`. With `DEBUG=0` session cookies are `Secure`.
 
 In compose, Postgres and the app are bound to `127.0.0.1` only: expose the app through the
 HTTPS proxy, never directly. The app has no login rate limiting of its own — configure it on
-the proxy / ingress (e.g. limit `POST /accounts/login/` and `/admin/login/`).
+the reverse proxy (e.g. limit `POST /accounts/login/` and `/admin/login/`).
 
 The TimescaleDB image is pinned (`2.30.2-pg17`). To upgrade, change the tag, then run
 `ALTER EXTENSION timescaledb UPDATE;` in the database.
