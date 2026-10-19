@@ -1,10 +1,13 @@
+import logging
 from datetime import date
 
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from prices import cardmarket
+from prices import cardmarket, mtgjson
 from prices.models import ImportRun
+
+logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
@@ -31,3 +34,8 @@ class Command(BaseCommand):
         run.finished_at = timezone.now()
         run.save()
         self.stdout.write(f'Imported {result.snapshots} prices for {result.date}')
+        try:
+            mtgjson.sync_expansions()
+        except Exception:
+            # Expansion names are cosmetic; never fail the daily import because of them.
+            logger.exception('Expansion sync from MTGJSON failed')
