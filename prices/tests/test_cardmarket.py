@@ -86,3 +86,22 @@ def test_run_import_recomputes_rising_for_guide_date(monkeypatch):
     monkeypatch.setattr(cardmarket, "compute_rising", computed.append)
     run_import(date(2026, 10, 19), sleep=lambda s: None)
     assert computed == [date(2026, 10, 19)]
+
+
+@pytest.mark.django_db
+def test_command_expects_todays_guide_in_cardmarket_timezone(monkeypatch):
+    from datetime import datetime, timezone as dt_timezone
+
+    # 23:30 UTC on Oct 18 is already Oct 19 in Berlin.
+    monkeypatch.setattr("django.utils.timezone.now", lambda: datetime(2026, 10, 18, 23, 30, tzinfo=dt_timezone.utc))
+    seen = []
+
+    def fake_run_import(today):
+        seen.append(today)
+        return cardmarket.ImportResult(today, 0, 0)
+
+    monkeypatch.setattr(cardmarket, "run_import", fake_run_import)
+    monkeypatch.setattr("prices.mtgjson.sync_expansions", lambda: 0)
+    monkeypatch.setattr("prices.scryfall.sync_scryfall", lambda: 0)
+    call_command("import_cardmarket")
+    assert seen == [date(2026, 10, 19)]

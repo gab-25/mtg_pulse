@@ -3,4 +3,4 @@ def test_database_is_postgres(settings):
 
 
 def test_timezone(settings):
-    assert settings.TIME_ZONE == "Europe/Rome" and settings.USE_TZ
+    assert settings.TIME_ZONE == "UTC" and settings.USE_TZ

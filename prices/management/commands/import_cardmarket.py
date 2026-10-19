@@ -14,10 +14,10 @@ class Command(BaseCommand):
     help = "Import today's Cardmarket price guide (idempotent; exits non-zero on failure)."
 
     def add_arguments(self, parser):
-        parser.add_argument('--date', type=date.fromisoformat, help='Expected guide date (default: today)')
+        parser.add_argument('--date', type=date.fromisoformat, help="Expected guide date (default: today in Cardmarket's timezone)")
 
     def handle(self, *args, **options):
-        today = options['date'] or timezone.localdate()
+        today = options['date'] or timezone.now().astimezone(cardmarket.BERLIN).date()
         run = ImportRun.objects.create(date=today)
         try:
             result = cardmarket.run_import(today)
