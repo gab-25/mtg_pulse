@@ -12,6 +12,7 @@ from django.conf import settings
 from django.db import transaction
 
 from .models import Card, Expansion, PriceSnapshot
+from .rising import compute_rising
 
 logger = logging.getLogger(__name__)
 
@@ -134,4 +135,6 @@ def run_import(today, sleep=time.sleep):
         waited += 1
         guide = fetch_json(config['PRICE_GUIDE_URL'])
     products = fetch_json(config['PRODUCTS_URL'])
-    return import_data(guide, products)
+    result = import_data(guide, products)
+    compute_rising(result.date)
+    return result

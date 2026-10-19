@@ -76,3 +76,13 @@ def test_command_records_failed_run(monkeypatch):
         call_command("import_cardmarket", "--date", "2026-10-19")
     run = ImportRun.objects.get()
     assert run.status == "failed" and "down" in run.error and run.finished_at is not None
+
+
+@pytest.mark.django_db
+def test_run_import_recomputes_rising_for_guide_date(monkeypatch):
+    urls = {settings.CARDMARKET["PRICE_GUIDE_URL"]: GUIDE, settings.CARDMARKET["PRODUCTS_URL"]: PRODUCTS}
+    monkeypatch.setattr(cardmarket, "fetch_json", urls.__getitem__)
+    computed = []
+    monkeypatch.setattr(cardmarket, "compute_rising", computed.append)
+    run_import(date(2026, 10, 19), sleep=lambda s: None)
+    assert computed == [date(2026, 10, 19)]

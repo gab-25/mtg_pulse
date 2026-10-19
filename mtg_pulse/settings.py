@@ -146,3 +146,17 @@ CARDMARKET = {
     'WAIT_ATTEMPTS': 6,
     'WAIT_SECONDS': 600,
 }
+
+
+# Rising cards detection (see prices/rising.py)
+
+RISING = {
+    'MIN_PRICE': '5.00',
+    'WINDOWS': [14, 28, 56],
+    'DEFAULT_WINDOW': 28,
+    'MIN_GAIN': 0.15,
+    'MIN_COVERAGE': 0.8,
+    'BUCKETS': 4,
+    'MIN_RISING_STEPS': 2,
+    'MAX_JUMP_SHARE': 0.5,
+}
