@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 import os
+import tomllib
 from pathlib import Path
 
 import dj_database_url
@@ -22,6 +23,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Local runs only: variables already in the environment (e.g. from docker compose) win.
 load_dotenv(BASE_DIR / '.env')
+
+
+with open(BASE_DIR / 'pyproject.toml', 'rb') as f:
+    VERSION = tomllib.load(f)['project']['version']
 
 
 def env_list(name):
@@ -80,6 +85,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'theme.context_processors.version',
             ],
         },
     },

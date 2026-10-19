@@ -33,6 +33,7 @@
     </div>
   </header>
   <main>{% block content %}{% endblock %}</main>
+  <footer class="footer">v{{ version }}</footer>
   <script src="{% static 'theme/preview.js' %}"></script>
 {% endblock %}
 {% block scripts %}{% endblock %}

@@ -17,3 +17,8 @@ def test_layout_templates_live_in_theme_app(name):
 def test_percent_filter():
     template = engines["django"].from_string("{% load theme_tags %}{{ value|percent }}")
     assert template.render({"value": 0.15}) == "15%"
+
+
+def test_footer_shows_pyproject_version(admin_client, settings):
+    settings.VERSION = "9.9.9"
+    assert '<footer class="footer">v9.9.9</footer>' in admin_client.get("/").content.decode()
