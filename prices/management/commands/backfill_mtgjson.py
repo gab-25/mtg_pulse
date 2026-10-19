@@ -1,21 +1,13 @@
 import tempfile
 from pathlib import Path
 
-import httpx
 from django.core.management.base import BaseCommand
 from django.db.models import Max
 
+from prices.cardmarket import download
 from prices.models import PriceSnapshot
 from prices.mtgjson import ALL_IDENTIFIERS_URL, ALL_PRICES_URL, backfill, sync_expansions
 from prices.rising import compute_rising
-
-
-def download(url, dest):
-    with httpx.stream('GET', url, timeout=300, follow_redirects=True) as response:
-        response.raise_for_status()
-        with open(dest, 'wb') as f:
-            for chunk in response.iter_bytes():
-                f.write(chunk)
 
 
 class Command(BaseCommand):

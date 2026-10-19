@@ -18,9 +18,20 @@ class Card(models.Model):
     )
     id_metacard = models.PositiveIntegerField(null=True, blank=True)
     date_added = models.DateTimeField(null=True, blank=True)
+    # From Scryfall, matched on the Cardmarket product id.
+    image_small = models.URLField(max_length=500, blank=True)
+    image_normal = models.URLField(max_length=500, blank=True)
+    scryfall_set_name = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
         return self.name or f'#{self.id_product}'
+
+    @property
+    def expansion_name(self):
+        """Cardmarket expansion name, else Scryfall's set name for this printing."""
+        if self.expansion_id and self.expansion and self.expansion.name:
+            return self.expansion.name
+        return self.scryfall_set_name
 
 
 def price_field():

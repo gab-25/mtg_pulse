@@ -4,7 +4,7 @@ from datetime import date
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
-from prices import cardmarket, mtgjson
+from prices import cardmarket, mtgjson, scryfall
 from prices.models import ImportRun
 
 logger = logging.getLogger(__name__)
@@ -39,3 +39,8 @@ class Command(BaseCommand):
         except Exception:
             # Expansion names are cosmetic; never fail the daily import because of them.
             logger.exception('Expansion sync from MTGJSON failed')
+        try:
+            scryfall.sync_scryfall()
+        except Exception:
+            # Images and set names are cosmetic too.
+            logger.exception('Card sync from Scryfall failed')

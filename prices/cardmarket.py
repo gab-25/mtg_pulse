@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 BERLIN = ZoneInfo('Europe/Berlin')
 MAGIC_SINGLE = 1
 FETCH_ATTEMPTS = 3
+HEADERS = {'User-Agent': 'MTGPulse/0.1', 'Accept': 'application/json;q=0.9,*/*;q=0.8'}
 
 # JSON key in the price guide -> PriceSnapshot field.
 PRICE_FIELDS = {
@@ -51,7 +52,7 @@ class ImportResult:
 def fetch_json(url):
     for attempt in range(FETCH_ATTEMPTS):
         try:
-            response = httpx.get(url, timeout=120, follow_redirects=True)
+            response = httpx.get(url, timeout=120, follow_redirects=True, headers=HEADERS)
             response.raise_for_status()
             return response.json()
         except (httpx.TransportError, httpx.HTTPStatusError) as exc:
@@ -60,6 +61,14 @@ def fetch_json(url):
                 raise
             logger.warning('Fetching %s failed (%s), retrying', url, exc)
             time.sleep(5 * 2**attempt)
+
+
+def download(url, dest):
+    with httpx.stream('GET', url, timeout=300, follow_redirects=True, headers=HEADERS) as response:
+        response.raise_for_status()
+        with open(dest, 'wb') as f:
+            for chunk in response.iter_bytes():
+                f.write(chunk)
 
 
 def guide_date(guide):
