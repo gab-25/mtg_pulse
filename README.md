@@ -1,2 +1,65 @@
 # mtg_pulse
-MTG Pulse
+
+MTG Pulse tracks the Cardmarket price of every Magic single over time and flags the cards
+whose price is rising steadily.
+
+- **Daily import** of Cardmarket's public price guide (~123k singles: trend, low, averages,
+  normal and foil) into a PostgreSQL + TimescaleDB hypertable — one row per card per day.
+- **Card page** with the price history chart.
+- **Rising cards**: trend price ≥ 5 €, steady rise over 14/28/56 days, no single-day spikes.
+  Thresholds live in `RISING` in `mtg_pulse/settings.py`.
+
+## Running locally
+
+```sh
+cp .env.example .env          # edit SECRET_KEY; DEBUG=1 for local development
+docker compose up -d --build  # db (TimescaleDB) + web on http://localhost:8000
+docker compose run --rm web python manage.py createsuperuser
+```
+
+Every page requires login; there is no sign-up, accounts are created with `createsuperuser`
+(or in `/admin/`).
+
+### First data
+
+```sh
+docker compose run --rm web python manage.py import_cardmarket   # today's prices
+docker compose run --rm web python manage.py backfill_mtgjson    # optional: last ~90 days from MTGJSON (~15 min)
+```
+
+The backfill uses MTGJSON's Cardmarket prices, which are the Cardmarket trend price; it never
+overwrites prices imported from Cardmarket.
+
+## Daily import
+
+`python manage.py import_cardmarket` is a one-shot command meant to run once a day from a
+scheduler (planned: a Kubernetes CronJob) at about **04:30 Europe/Rome**, after Cardmarket
+publishes the guide (~02:40).
+
+- Idempotent: running it twice on the same day changes nothing.
+- If today's guide is not published yet it refetches every 10 minutes, up to 6 times.
+- Exits non-zero on failure; every run is logged in `ImportRun` (visible in `/admin/`).
+- After importing it recomputes the rising-cards ranking and refreshes expansion names.
+
+Other commands: `compute_rising [--date YYYY-MM-DD]`, `sync_expansions`.
+
+## Configuration
+
+| Variable | Meaning |
+|---|---|
+| `DATABASE_URL` | PostgreSQL URL; the database needs the TimescaleDB extension |
+| `SECRET_KEY` | Django secret key |
+| `DEBUG` | `1` for development, default off |
+| `ALLOWED_HOSTS` | comma-separated host names |
+| `CSRF_TRUSTED_ORIGINS` | comma-separated origins, e.g. `https://pulse.example.com` |
+
+HTTPS is expected to be terminated by the reverse proxy / ingress in front of the app, which
+must set `X-Forwarded-Proto`. With `DEBUG=0` session cookies are `Secure`.
+
+## Development
+
+```sh
+docker compose up -d db
+uv sync
+uv run pytest
+```
