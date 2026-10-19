@@ -2,7 +2,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
-from django.db.models import Max, OuterRef, Subquery
+from django.db.models import Max, Min, OuterRef, Subquery
 from django.shortcuts import get_object_or_404, render
 
 from .models import Card, PriceSnapshot, RisingCard
@@ -10,6 +10,7 @@ from .models import Card, PriceSnapshot, RisingCard
 SERIES_FIELDS = ['trend', 'low', 'avg30', 'trend_foil', 'low_foil', 'avg30_foil']
 MAX_RISING_ROWS = 200
 MAX_SEARCH_RESULTS = 100
+RECENT_DAYS = 5
 
 
 def as_float(value):
@@ -50,11 +51,14 @@ def rising(request):
     foil = request.GET.get('foil') == '1'
     min_price = parse_min_price(request.GET.get('min_price'))
     as_of = RisingCard.objects.aggregate(d=Max('date'))['d']
-    rows = list(
-        RisingCard.objects.filter(date=as_of, window_days=window, foil=foil, price__gte=min_price)
-        .select_related('card__expansion')
-        .order_by('-gain_pct')[:MAX_RISING_ROWS]
-    )
+    ranking = RisingCard.objects.filter(date=as_of, window_days=window, foil=foil, price__gte=min_price)
+    rows = list(ranking.select_related('card__expansion').order_by('-gain_pct', '-r2')[:MAX_RISING_ROWS])
+    dates = PriceSnapshot.objects.aggregate(latest=Max('date'), since=Min('date'))
+    stats = {
+        'rising': ranking.count(),
+        'tracked': PriceSnapshot.objects.filter(date=dates['latest']).count() if dates['latest'] else 0,
+        'since': dates['since'],
+    }
     if rows:
         field = 'trend_foil' if foil else 'trend'
         history = {}
@@ -71,6 +75,8 @@ def rising(request):
             row.gain_display = row.gain_pct * 100
     return render(request, 'prices/rising.html', {
         'rows': rows,
+        'stats': stats,
+        'floor': Decimal(settings.RISING['MIN_PRICE']),
         'as_of': as_of,
         'window': window,
         'windows': settings.RISING['WINDOWS'],
@@ -99,8 +105,27 @@ def card_detail(request, id_product):
         {'date': row['date'].isoformat(), **{f: as_float(row[f]) for f in SERIES_FIELDS}}
         for row in card.snapshots.order_by('date').values('date', *SERIES_FIELDS)
     ]
+    latest_ranking = RisingCard.objects.aggregate(d=Max('date'))['d']
+    rising = RisingCard.objects.filter(
+        card=card, date=latest_ranking, window_days=settings.RISING['DEFAULT_WINDOW'], foil=False
+    ).first()
     return render(request, 'prices/card_detail.html', {
         'card': card,
         'series': series,
-        'latest': series[-1] if series else None,
+        'latest': card.snapshots.order_by('-date').first(),
+        'rising': rising,
+        'rising_gain': rising.gain_pct * 100 if rising else None,
+        'recent': recent_changes(card),
     })
+
+
+def recent_changes(card):
+    """The last RECENT_DAYS snapshots, newest first, with the trend change from the day before."""
+    rows = list(card.snapshots.order_by('-date').values('date', 'trend', 'trend_foil')[:RECENT_DAYS + 1])
+    for row, previous in zip(rows, rows[1:] + [None]):
+        row['change'] = (
+            row['trend'] - previous['trend']
+            if previous and row['trend'] is not None and previous['trend'] is not None
+            else None
+        )
+    return rows[:RECENT_DAYS]

@@ -1,41 +1,80 @@
 {% extends "base.html" %}
+{% load humanize %}
 {% block title %}Rising cards · MTG Pulse{% endblock %}
 {% block content %}
-<h1>Rising cards</h1>
-<form class="filters" method="get">
-  <label>Window
-    <select name="window">
-      {% for w in windows %}<option value="{{ w }}"{% if w == window %} selected{% endif %}>{{ w }} days</option>{% endfor %}
-    </select>
-  </label>
-  <label>Version
-    <select name="foil">
-      <option value="0"{% if not foil %} selected{% endif %}>Normal</option>
-      <option value="1"{% if foil %} selected{% endif %}>Foil</option>
-    </select>
-  </label>
-  <label>Min price € <input type="number" name="min_price" value="{{ min_price }}" min="{{ min_price }}" step="0.5"></label>
-  <button type="submit">Apply</button>
+<div class="page-head">
+  <div>
+    <h1>Rising cards</h1>
+    <p class="muted">Trend price ≥ {{ floor }} € with a steady rise — single-day spikes are filtered out.</p>
+  </div>
+  {% if as_of %}<p class="muted mono">Updated {{ as_of|date:"Y-m-d" }}</p>{% endif %}
+</div>
+
+<div class="stats">
+  <div class="panel stat"><span class="label">Rising now · {{ window }} days</span><strong class="accent">{{ stats.rising|intcomma }}</strong></div>
+  <div class="panel stat"><span class="label">Singles tracked daily</span><strong>{{ stats.tracked|intcomma }}</strong></div>
+  <div class="panel stat"><span class="label">Price history since</span><strong>{{ stats.since|date:"Y-m-d"|default:"—" }}</strong></div>
+</div>
+
+<form class="panel filters" method="get">
+  <fieldset>
+    <legend class="label">Window</legend>
+    <div class="segmented">
+      {% for w in windows %}
+      <label><input type="radio" name="window" value="{{ w }}"{% if w == window %} checked{% endif %}><span>{{ w }}d</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend class="label">Version</legend>
+    <div class="segmented">
+      <label><input type="radio" name="foil" value="0"{% if not foil %} checked{% endif %}><span>Normal</span></label>
+      <label><input type="radio" name="foil" value="1"{% if foil %} checked{% endif %}><span>Foil</span></label>
+    </div>
+  </fieldset>
+  <div class="field">
+    <label class="label" for="min-price">Min price (€)</label>
+    <input id="min-price" type="number" name="min_price" value="{{ min_price }}" min="{{ floor }}" step="0.5">
+  </div>
+  <button type="submit" class="button">Apply</button>
 </form>
+
 {% if not as_of %}
   <p class="muted">No rising cards yet: the ranking needs a few weeks of price history.</p>
 {% elif not rows %}
-  <p class="muted">No card matches these filters on {{ as_of }}.</p>
+  <p class="muted">No card matches these filters on {{ as_of|date:"Y-m-d" }}.</p>
 {% else %}
-<p class="muted">As of {{ as_of }} · trend price ≥ {{ min_price }} €, steady rise over {{ window }} days.</p>
-<table>
-  <thead><tr><th>Card</th><th>Expansion</th><th class="num">Trend</th><th class="num">Gain</th><th>Last {{ window }} days</th></tr></thead>
-  <tbody>
-  {% for row in rows %}
-    <tr>
-      <td><a href="{% url 'card_detail' row.card_id %}">{{ row.card }}</a></td>
-      <td>{{ row.card.expansion|default:"—" }}</td>
-      <td class="num">{{ row.price }} €</td>
-      <td class="num up">+{{ row.gain_display|floatformat:1 }}%</td>
-      <td><svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none" aria-hidden="true"><polyline points="{{ row.sparkline }}"/></svg></td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<section class="panel" aria-label="Ranking">
+  <div class="table-scroll">
+    <table style="min-width: 760px">
+      <thead>
+        <tr>
+          <th scope="col" class="num">#</th>
+          <th scope="col">Card</th>
+          <th scope="col" class="num">Trend</th>
+          <th scope="col" class="num">Gain · {{ window }}d</th>
+          <th scope="col" class="num">Steadiness</th>
+          <th scope="col">Last {{ window }} days</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td class="num rank">{{ forloop.counter }}</td>
+          <td>{% include "prices/_card_cell.html" with card=row.card show_expansion=True %}</td>
+          <td class="num">{{ row.price }} €</td>
+          <td class="num up">▲ +{{ row.gain_display|floatformat:1 }}%</td>
+          <td class="num">R² {{ row.r2|floatformat:2 }}</td>
+          <td><svg class="spark" viewBox="0 0 120 28" preserveAspectRatio="none" role="img" aria-label="Trend over the last {{ window }} days"><polyline points="{{ row.sparkline }}"/></svg></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="table-foot">
+    <span>Showing {{ rows|length }} of {{ stats.rising|intcomma }} · ranked by gain, then steadiness</span>
+    <span class="mono">{% if foil %}Foil{% else %}Normal{% endif %} · {{ window }} days · ≥ {{ min_price }} €</span>
+  </div>
+</section>
 {% endif %}
 {% endblock %}

@@ -4,23 +4,35 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}MTG Pulse{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{% static 'prices/style.css' %}">
-  {% block head %}{% endblock %}
 </head>
 <body>
+{% block body %}
   <header class="topbar">
-    <a class="brand" href="{% url 'rising' %}">MTG Pulse</a>
-    {% if user.is_authenticated %}
-    <nav>
-      <a href="{% url 'rising' %}">Rising</a>
-      <form class="search-box" action="{% url 'search' %}" method="get">
-        <input type="search" name="q" value="{{ q|default:'' }}" placeholder="Search cards…" aria-label="Search cards">
+    <div class="mana" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="topbar-inner">
+      {% include "prices/_brand.html" %}
+      {% with current=request.resolver_match.url_name %}
+      <nav class="nav" aria-label="Main">
+        <a href="{% url 'rising' %}"{% if current == 'rising' %} aria-current="page"{% endif %}>Rising</a>
+        <a href="{% url 'search' %}"{% if current == 'search' %} aria-current="page"{% endif %}>Search</a>
+      </nav>
+      {% if current != 'search' %}
+      <form class="nav-search" action="{% url 'search' %}" method="get" role="search">
+        <label for="nav-q" class="visually-hidden">Search cards</label>
+        <input id="nav-q" type="search" name="q" placeholder="Search cards…">
       </form>
-      <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="link">Log out</button></form>
-    </nav>
-    {% endif %}
+      {% endif %}
+      {% endwith %}
+      <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="link-button">Log out</button></form>
+    </div>
   </header>
   <main>{% block content %}{% endblock %}</main>
-  {% block scripts %}{% endblock %}
+  <script src="{% static 'prices/preview.js' %}"></script>
+{% endblock %}
+{% block scripts %}{% endblock %}
 </body>
 </html>

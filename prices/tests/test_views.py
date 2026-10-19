@@ -86,3 +86,52 @@ def test_rising_invalid_window_falls_back(admin_client):
 
 def test_rising_foil_filter(admin_client, rising_rows):
     assert len(admin_client.get("/", {"foil": "1"}).context["rows"]) == 0
+
+
+def test_rising_ties_sorted_by_steadiness(admin_client):
+    for pk, r2 in [(1, 0.5), (2, 0.9)]:
+        card = Card.objects.create(id_product=pk, name=f"Card {pk}")
+        RisingCard.objects.create(date=AS_OF, card=card, window_days=28, foil=False,
+                                  price=Decimal("10"), gain_pct=0.3, slope=0.1, r2=r2)
+    assert [row.card_id for row in admin_client.get("/").context["rows"]] == [2, 1]
+
+
+def test_rising_stats(admin_client, rising_rows):
+    PriceSnapshot.objects.create(card_id=1, date=AS_OF - timedelta(days=30), trend=Decimal("4"))
+    PriceSnapshot.objects.create(card_id=1, date=AS_OF, trend=Decimal("5.50"))
+    PriceSnapshot.objects.create(card_id=2, date=AS_OF, trend=Decimal("20"))
+    stats = admin_client.get("/").context["stats"]
+    assert stats == {"rising": 2, "tracked": 2, "since": AS_OF - timedelta(days=30)}
+
+
+def test_rising_row_shows_thumbnail_with_preview(admin_client, rising_rows):
+    Card.objects.filter(pk=2).update(image_small="https://img/s.jpg", image_normal="https://img/n.jpg")
+    content = admin_client.get("/").content
+    assert b'src="https://img/s.jpg"' in content and b'data-preview="https://img/n.jpg"' in content
+
+
+def test_search_zero_price_and_scryfall_expansion(admin_client):
+    card = Card.objects.create(id_product=1, name="Nicol Bolas, Dragon-God", scryfall_set_name="Mythic Edition")
+    PriceSnapshot.objects.create(card=card, date=AS_OF, trend=Decimal("0.00"))
+    content = admin_client.get("/search/", {"q": "nicol"}).content
+    assert b"No price" in content and b"0.00" not in content and b"Mythic Edition" in content
+    assert b"thumb-missing" in content
+
+
+def test_card_detail_rising_badge_and_recent_changes(admin_client):
+    card = Card.objects.create(id_product=1, name="Ichormoon Gauntlet", image_normal="https://img/n.jpg")
+    for i, trend in enumerate(["21.29", "21.84", "21.79", "21.90", "21.90", "22.00"]):
+        PriceSnapshot.objects.create(card=card, date=AS_OF - timedelta(days=5 - i), trend=Decimal(trend))
+    RisingCard.objects.create(date=AS_OF, card=card, window_days=28, foil=False,
+                              price=Decimal("22.00"), gain_pct=2.008, slope=0.5, r2=0.98)
+    r = admin_client.get("/cards/1/")
+    assert r.context["rising"].gain_pct == 2.008
+    recent = r.context["recent"]
+    assert [row["date"] for row in recent] == [AS_OF - timedelta(days=d) for d in range(5)]
+    assert [row["change"] for row in recent] == [Decimal("0.10"), Decimal("0.00"), Decimal("0.11"), Decimal("-0.05"), Decimal("0.55")]
+    assert b'src="https://img/n.jpg"' in r.content
+
+
+def test_card_detail_without_rising_has_no_badge(admin_client):
+    Card.objects.create(id_product=1, name="Quiet Card")
+    assert admin_client.get("/cards/1/").context["rising"] is None
