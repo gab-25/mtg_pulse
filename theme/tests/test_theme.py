@@ -4,7 +4,7 @@ from django.template import engines
 from django.template.loader import get_template
 
 
-@pytest.mark.parametrize("path", ["theme/style.css", "theme/preview.js"])
+@pytest.mark.parametrize("path", ["theme/style.css", "theme/preview.js", "theme/favicon.svg"])
 def test_theme_static_files(path):
     assert finders.find(path) and not finders.find(path.replace("theme/", "prices/"))
 
