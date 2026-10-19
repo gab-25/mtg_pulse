@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Search · MTG Pulse{% endblock %}
+{% block content %}
+<h1>Search</h1>
+{% if q|length < 2 %}
+  <p class="muted">Type at least 2 characters of a card name.</p>
+{% elif not results %}
+  <p class="muted">No cards match “{{ q }}”.</p>
+{% else %}
+<table>
+  <thead><tr><th>Card</th><th>Expansion</th><th class="num">Trend</th></tr></thead>
+  <tbody>
+  {% for card in results %}
+    <tr>
+      <td><a href="{% url 'card_detail' card.id_product %}">{{ card }}</a></td>
+      <td>{{ card.expansion|default:"—" }}</td>
+      <td class="num">{% if card.latest_trend is not None %}{{ card.latest_trend }} €{% else %}—{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

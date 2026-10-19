@@ -1,0 +1,40 @@
+:root {
+  --bg: #f8fafc; --fg: #0f172a; --muted: #64748b; --line: #e2e8f0; --card: #fff;
+  --accent: #2563eb; --up: #16a34a; --error: #dc2626;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0b1120; --fg: #e2e8f0; --muted: #94a3b8; --line: #1e293b; --card: #111827; --accent: #60a5fa; --up: #4ade80; --error: #f87171; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.topbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--card); }
+.brand { font-weight: 700; color: var(--fg); }
+nav { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.5rem; margin: 8px 0 12px; }
+.muted { color: var(--muted); }
+.error { color: var(--error); }
+input, select, button { font: inherit; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); }
+button { cursor: pointer; }
+button.link { border: 0; background: none; color: var(--accent); padding: 0; }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 12px; }
+.filters label, .login label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); }
+.login { max-width: 320px; margin: 40px auto; }
+.login form { display: flex; flex-direction: column; gap: 12px; }
+table { width: 100%; border-collapse: collapse; background: var(--card); }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+th { font-size: .8rem; color: var(--muted); font-weight: 600; }
+.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.up { color: var(--up); }
+.spark { width: 120px; height: 28px; }
+.spark polyline { fill: none; stroke: var(--up); stroke-width: 1.5; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
+.stats div { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.stats span { display: block; font-size: .8rem; color: var(--muted); }
+.stats strong { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+.chart-controls { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
+.ranges button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.chart { position: relative; height: 360px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+@media (max-width: 640px) { th:nth-child(2), td:nth-child(2) { display: none; } }

@@ -1,0 +1,26 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}MTG Pulse{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'prices/style.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'rising' %}">MTG Pulse</a>
+    {% if user.is_authenticated %}
+    <nav>
+      <a href="{% url 'rising' %}">Rising</a>
+      <form class="search-box" action="{% url 'search' %}" method="get">
+        <input type="search" name="q" value="{{ q|default:'' }}" placeholder="Search cards…" aria-label="Search cards">
+      </form>
+      <form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="link">Log out</button></form>
+    </nav>
+    {% endif %}
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

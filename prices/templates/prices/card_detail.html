@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ card }} · MTG Pulse{% endblock %}
+{% block content %}
+<h1>{{ card }}</h1>
+<p class="muted">{{ card.expansion|default:"Unknown expansion" }} ·
+  <a href="https://www.cardmarket.com/en/Magic/Products/Search?searchString={{ card.name|urlencode }}" rel="noopener" target="_blank">Open on Cardmarket</a></p>
+{% if not series %}
+  <p class="muted">No price history yet.</p>
+{% else %}
+<div class="stats">
+  <div><span>Trend</span><strong>{{ latest.trend|default_if_none:"—" }}{% if latest.trend is not None %} €{% endif %}</strong></div>
+  <div><span>Low</span><strong>{{ latest.low|default_if_none:"—" }}{% if latest.low is not None %} €{% endif %}</strong></div>
+  <div><span>Trend foil</span><strong>{{ latest.trend_foil|default_if_none:"—" }}{% if latest.trend_foil is not None %} €{% endif %}</strong></div>
+  <div><span>Updated</span><strong>{{ latest.date }}</strong></div>
+</div>
+<div class="chart-controls">
+  <div class="ranges" role="group" aria-label="Range">
+    <button data-days="30">1M</button><button data-days="90">3M</button><button data-days="365">1Y</button><button data-days="0" class="active">All</button>
+  </div>
+  <label><input type="checkbox" id="foil-toggle"> Foil</label>
+</div>
+<div class="chart"><canvas id="price-chart"></canvas></div>
+{{ series|json_script:"series-data" }}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if series %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+(function () {
+  const all = JSON.parse(document.getElementById('series-data').textContent);
+  let days = 0, foil = false;
+  const lines = [['trend', 'Trend', '#2563eb'], ['low', 'Low', '#16a34a'], ['avg30', 'Avg 30d', '#9ca3af']];
+  const chart = new Chart(document.getElementById('price-chart'), {
+    type: 'line',
+    data: {labels: [], datasets: lines.map(([, label, color]) => ({label, borderColor: color, backgroundColor: color, data: [], spanGaps: true, pointRadius: 0, borderWidth: 2}))},
+    options: {responsive: true, maintainAspectRatio: false, interaction: {mode: 'index', intersect: false},
+      scales: {y: {ticks: {callback: v => v + ' €'}}}},
+  });
+  function draw() {
+    let rows = all;
+    if (days) {
+      const from = new Date(all[all.length - 1].date);
+      from.setDate(from.getDate() - days);
+      rows = all.filter(r => new Date(r.date) >= from);
+    }
+    chart.data.labels = rows.map(r => r.date);
+    lines.forEach(([key], i) => { chart.data.datasets[i].data = rows.map(r => r[foil ? key + '_foil' : key]); });
+    chart.update();
+  }
+  document.querySelectorAll('.ranges button').forEach(b => b.addEventListener('click', () => {
+    days = Number(b.dataset.days);
+    document.querySelectorAll('.ranges button').forEach(o => o.classList.toggle('active', o === b));
+    draw();
+  }));
+  document.getElementById('foil-toggle').addEventListener('change', e => { foil = e.target.checked; draw(); });
+  draw();
+})();
+</script>
+{% endif %}
+{% endblock %}
