@@ -26,7 +26,7 @@ Every page requires login; there is no sign-up, accounts are created with `creat
 
 ```sh
 docker compose run --rm web python manage.py import_cardmarket   # today's prices
-docker compose run --rm web python manage.py backfill_mtgjson    # optional: last ~90 days from MTGJSON (~15 min)
+docker compose run --rm web python manage.py backfill_mtgjson    # optional: last ~90 days from MTGJSON (~5 min)
 ```
 
 The backfill uses MTGJSON's Cardmarket prices, which are the Cardmarket trend price; it never

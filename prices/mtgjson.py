@@ -6,12 +6,10 @@ so they are stored as `trend` / `trend_foil`.
 """
 
 import gzip
-from collections import defaultdict
-from datetime import date
 from decimal import Decimal
 
 import ijson
-from django.db import transaction
+from django.db import connection, transaction
 
 from .cardmarket import ensure_cards, fetch_json
 from .models import Expansion, PriceSnapshot
@@ -19,7 +17,6 @@ from .models import Expansion, PriceSnapshot
 SET_LIST_URL = 'https://mtgjson.com/api/v5/SetList.json'
 ALL_PRICES_URL = 'https://mtgjson.com/api/v5/AllPrices.json.gz'
 ALL_IDENTIFIERS_URL = 'https://mtgjson.com/api/v5/AllIdentifiers.json.gz'
-BATCH = 5000
 CENT = Decimal('0.01')
 
 
@@ -47,37 +44,38 @@ def mcm_ids(identifiers_path):
         }
 
 
-def flush(rows):
-    """Insert rows keyed by (id_product, date); existing rows (e.g. from Cardmarket) are kept."""
-    with transaction.atomic():
-        ensure_cards({card_id for card_id, _ in rows})
-        PriceSnapshot.objects.bulk_create(
-            [
-                PriceSnapshot(card_id=card_id, date=day, source=PriceSnapshot.SOURCE_MTGJSON, **prices)
-                for (card_id, day), prices in rows.items()
-            ],
-            ignore_conflicts=True,
-            batch_size=BATCH,
-        )
-    return len(rows)
-
-
 def backfill(prices_path, identifiers_path):
+    """Load the prices into a temp table with COPY, then insert them; existing rows (e.g. from
+    Cardmarket) are kept. Printings sharing an mcmId are merged per day. Returns rows inserted."""
     ids = mcm_ids(identifiers_path)
-    rows = defaultdict(dict)
-    written = 0
-    with open_json(prices_path) as f:
-        for uuid, formats in ijson.kvitems(f, 'data'):
-            card_id = ids.get(uuid)
-            retail = formats.get('paper', {}).get('cardmarket', {}).get('retail', {})
-            if card_id is None or not retail:
-                continue
-            for kind, field in (('normal', 'trend'), ('foil', 'trend_foil')):
-                for day, price in retail.get(kind, {}).items():
-                    rows[(card_id, date.fromisoformat(day))][field] = Decimal(str(price)).quantize(CENT)
-            if len(rows) >= BATCH:
-                written += flush(rows)
-                rows = defaultdict(dict)
-    if rows:
-        written += flush(rows)
-    return written
+    cards = set()
+    table = PriceSnapshot._meta.db_table
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute(
+            'CREATE TEMP TABLE mtgjson_prices (card_id integer, date date, trend numeric(10, 2), '
+            'trend_foil numeric(10, 2))'
+        )
+        with open_json(prices_path) as f, cursor.copy('COPY mtgjson_prices FROM STDIN') as copy:
+            for uuid, formats in ijson.kvitems(f, 'data'):
+                card_id = ids.get(uuid)
+                retail = formats.get('paper', {}).get('cardmarket', {}).get('retail', {})
+                if card_id is None or not retail:
+                    continue
+                normal, foil = retail.get('normal', {}), retail.get('foil', {})
+                for day in normal.keys() | foil.keys():
+                    copy.write_row((card_id, day, price(normal.get(day)), price(foil.get(day))))
+                cards.add(card_id)
+        ensure_cards(cards)
+        cursor.execute(
+            f'INSERT INTO {table} (card_id, date, trend, trend_foil, source) '
+            'SELECT card_id, date, max(trend), max(trend_foil), %s FROM mtgjson_prices '
+            'GROUP BY card_id, date ON CONFLICT DO NOTHING',
+            [PriceSnapshot.SOURCE_MTGJSON],
+        )
+        inserted = cursor.rowcount
+        cursor.execute('DROP TABLE mtgjson_prices')
+    return inserted
+
+
+def price(value):
+    return None if value is None else Decimal(str(value)).quantize(CENT)

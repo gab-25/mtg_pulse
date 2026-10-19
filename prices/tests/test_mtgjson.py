@@ -50,6 +50,26 @@ def test_backfill_never_overwrites_cardmarket_rows(files):
     assert Card.objects.get(id_product=1).name == "Altar's Light"
 
 
+def test_backfill_merges_printings_sharing_an_mcmid(files):
+    prices, ids = files
+    data = json.loads(prices.read_text())
+    data["data"]["u4"] = {"paper": {"cardmarket": {"retail": {"foil": {"2026-08-02": 8.5}}}}}
+    prices.write_text(json.dumps(data))
+    data = json.loads(ids.read_text())
+    data["data"]["u4"] = {"identifiers": {"mcmId": "1"}}
+    ids.write_text(json.dumps(data))
+    assert backfill(prices, ids) == 2
+    s = PriceSnapshot.objects.get(card_id=1, date=date(2026, 8, 2))
+    assert (s.trend, s.trend_foil) == (Decimal("4.20"), Decimal("8.50"))
+
+
+def test_backfill_rerun_keeps_existing_rows(files):
+    backfill(*files)
+    PriceSnapshot.objects.filter(card_id=1, date=date(2026, 8, 1)).update(trend=Decimal("1"))
+    assert backfill(*files) == 0
+    assert PriceSnapshot.objects.get(card_id=1, date=date(2026, 8, 1)).trend == Decimal("1.00")
+
+
 def test_sync_expansions(monkeypatch):
     monkeypatch.setattr(mtgjson, "fetch_json", lambda url: {"data": [
         {"mcmId": 45, "mcmName": "Fifth Dawn", "name": "Fifth Dawn"},

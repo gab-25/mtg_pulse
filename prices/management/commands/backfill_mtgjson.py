@@ -20,7 +20,7 @@ class Command(BaseCommand):
             download(ALL_PRICES_URL, prices)
             download(ALL_IDENTIFIERS_URL, identifiers)
             written = backfill(prices, identifiers)
-        self.stdout.write(f'{written} backfilled rows processed')
+        self.stdout.write(f'{written} backfilled rows inserted')
         self.stdout.write(f'{sync_expansions()} expansions synced')
         latest = PriceSnapshot.objects.aggregate(d=Max('date'))['d']
         if latest:
