@@ -135,3 +135,14 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+# Cardmarket public price files
+
+CARDMARKET = {
+    'PRICE_GUIDE_URL': 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_1.json',
+    'PRODUCTS_URL': 'https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_1.json',
+    # When the guide is not yet published, wait WAIT_SECONDS between up to WAIT_ATTEMPTS refetches.
+    'WAIT_ATTEMPTS': 6,
+    'WAIT_SECONDS': 600,
+}
