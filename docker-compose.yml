@@ -1,0 +1,32 @@
+services:
+  db:
+    # Pinned: upgrading needs ALTER EXTENSION timescaledb UPDATE on the existing volume.
+    image: timescale/timescaledb:2.30.2-pg17
+    environment:
+      POSTGRES_USER: mtg_pulse
+      POSTGRES_PASSWORD: mtg_pulse
+      POSTGRES_DB: mtg_pulse
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mtg_pulse -d mtg_pulse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://mtg_pulse:mtg_pulse@db:5432/mtg_pulse
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Only reachable from the host: put the HTTPS reverse proxy in front.
+      - "127.0.0.1:8000:8000"
+
+volumes:
+  pgdata:

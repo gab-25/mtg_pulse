@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Log in · MTG Pulse{% endblock %}
+{% block body %}
+<div class="login-page">
+  {% include "theme/_brand.html" %}
+  <div class="login-frame">
+    <form method="post">
+      {% csrf_token %}
+      <div class="intro">
+        <h1>Log in</h1>
+        <p class="muted">Cardmarket prices and trends, updated daily.</p>
+      </div>
+      {% if form.errors %}<p class="error" role="alert">Wrong username or password.</p>{% endif %}
+      <div class="field">
+        <label class="label" for="id_username">Username</label>
+        <input id="id_username" type="text" name="username" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label class="label" for="id_password">Password</label>
+        <input id="id_password" type="password" name="password" autocomplete="current-password" required>
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="button">Log in</button>
+    </form>
+  </div>
+  <div class="pips" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+  <p class="muted">Accounts are created by the administrator.</p>
+</div>
+{% endblock %}

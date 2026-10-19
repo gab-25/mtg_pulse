@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Search · MTG Pulse{% endblock %}
+{% block content %}
+<h1>Search cards</h1>
+<form class="filters" method="get" role="search" style="padding: 0">
+  <div class="field" style="flex: 1 1 420px; min-width: 0">
+    <label class="label" for="search-q">Card name</label>
+    <input id="search-q" type="search" name="q" value="{{ q }}" autofocus>
+  </div>
+  <button type="submit" class="button">Search</button>
+</form>
+{% if q|length < 2 %}
+  <p class="muted">Type at least 2 characters of a card name.</p>
+{% elif not results %}
+  <p class="muted">No cards match “{{ q }}”.</p>
+{% else %}
+<p class="muted">{{ results|length }} printing{{ results|length|pluralize }} match “{{ q }}”. Each printing has its own price.</p>
+<section class="panel" aria-label="Results">
+  <div class="table-scroll">
+    <table style="min-width: 560px">
+      <thead><tr><th scope="col">Card</th><th scope="col">Expansion</th><th scope="col" class="num">Trend</th></tr></thead>
+      <tbody>
+      {% for card in results %}
+        <tr>
+          <td>{% include "prices/_card_cell.html" with card=card show_expansion=False %}</td>
+          <td class="expansion">{{ card.expansion_name|default:"Unknown expansion" }}</td>
+          <td class="num">{% if card.latest_trend %}{{ card.latest_trend }} €{% else %}<span class="no-price">No price</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

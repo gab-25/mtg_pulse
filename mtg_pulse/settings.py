@@ -10,22 +10,32 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
+def env_list(name):
+    return [v.strip() for v in os.environ.get(name, '').split(',') if v.strip()]
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure--=c3(8kewd2a!@jecr&n=3ex5dc#y(jwly*t=wdpdz1$3@vsm2'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', '0') == '1'
 
-ALLOWED_HOSTS = []
+SECRET_KEY = os.environ['SECRET_KEY']
+if not DEBUG and (SECRET_KEY == 'change-me' or len(SECRET_KEY) < 50):
+    raise ImproperlyConfigured('SECRET_KEY must be a random string of at least 50 characters when DEBUG is off')
+
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS')
+
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 
 # Application definition
@@ -37,14 +47,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
+    'theme',
+    'prices',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.auth.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -73,10 +88,7 @@ WSGI_APPLICATION = 'mtg_pulse.wsgi.application'
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(conn_max_age=60),
 }
 
 
@@ -116,6 +128,14 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+LOGIN_URL = 'login'
+
+LOGIN_REDIRECT_URL = 'rising'
+
+LOGOUT_REDIRECT_URL = 'login'
+
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
@@ -124,4 +144,33 @@ MAILERS = {
     'default': {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
+}
+
+
+# Cardmarket public price files
+
+CARDMARKET = {
+    'PRICE_GUIDE_URL': 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_1.json',
+    'PRODUCTS_URL': 'https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_1.json',
+    # When the guide is not yet published, wait WAIT_SECONDS between up to WAIT_ATTEMPTS refetches.
+    'WAIT_ATTEMPTS': 6,
+    'WAIT_SECONDS': 600,
+}
+
+
+# Rising cards detection (see prices/rising.py)
+
+# Measures are computed nightly for every card priced at least MEASURE_MIN_PRICE; the other
+# values are the default thresholds, which each user can change on the Settings page.
+RISING = {
+    'MEASURE_MIN_PRICE': '1.00',
+    'MIN_PRICE': '5.00',
+    'WINDOWS': [14, 28, 56],
+    'DEFAULT_WINDOW': 28,
+    'MIN_GAIN': 0.15,
+    'MIN_R2': 0.0,
+    'MIN_COVERAGE': 0.8,
+    'BUCKETS': 4,
+    'MIN_RISING_STEPS': 2,
+    'MAX_JUMP_SHARE': 0.5,
 }
