@@ -1,0 +1,6 @@
+import os
+
+os.environ.setdefault('SECRET_KEY', 'test-secret-key')
+os.environ.setdefault('DATABASE_URL', 'postgres://mtg_pulse:mtg_pulse@localhost:5432/mtg_pulse')
+
+from .settings import *  # noqa: E402,F403
