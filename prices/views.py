@@ -3,9 +3,11 @@ from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.db.models import Max, Min, OuterRef, Subquery
-from django.shortcuts import get_object_or_404, render
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Card, PriceSnapshot, RisingCard
+from .forms import PreferencesForm
+from .models import Card, PriceSnapshot, RankingPreferences, RisingCard
 
 SERIES_FIELDS = ['trend', 'low', 'avg30', 'trend_foil', 'low_foil', 'avg30_foil']
 MAX_RISING_ROWS = 200
@@ -17,22 +19,22 @@ def as_float(value):
     return None if value is None else float(value)
 
 
-def parse_window(raw):
-    rules = settings.RISING
+def parse_window(raw, default):
     try:
         window = int(raw)
     except (TypeError, ValueError):
-        return rules['DEFAULT_WINDOW']
-    return window if window in rules['WINDOWS'] else rules['DEFAULT_WINDOW']
+        return default
+    return window if window in settings.RISING['WINDOWS'] else default
 
 
-def parse_min_price(raw):
-    floor = Decimal(settings.RISING['MIN_PRICE'])
+def parse_min_price(raw, default):
+    """Price filter from the query string; measures exist only above MEASURE_MIN_PRICE."""
+    floor = Decimal(settings.RISING['MEASURE_MIN_PRICE'])
     try:
         value = Decimal(raw)
     except (TypeError, InvalidOperation):
-        return floor
-    return max(value, floor) if value.is_finite() else floor
+        return default
+    return max(value, floor) if value.is_finite() else default
 
 
 def sparkline(values, width=120, height=28):
@@ -47,11 +49,12 @@ def sparkline(values, width=120, height=28):
 
 
 def rising(request):
-    window = parse_window(request.GET.get('window'))
-    foil = request.GET.get('foil') == '1'
-    min_price = parse_min_price(request.GET.get('min_price'))
+    prefs = RankingPreferences.for_user(request.user)
+    window = parse_window(request.GET.get('window'), prefs.window_days)
+    foil = request.GET['foil'] == '1' if 'foil' in request.GET else prefs.foil
+    min_price = parse_min_price(request.GET.get('min_price'), prefs.min_price)
     as_of = RisingCard.objects.aggregate(d=Max('date'))['d']
-    ranking = RisingCard.objects.filter(date=as_of, window_days=window, foil=foil, price__gte=min_price)
+    ranking = prefs.filter(RisingCard.objects.filter(date=as_of, window_days=window, foil=foil), min_price=min_price)
     rows = list(ranking.select_related('card__expansion').order_by('-gain_pct', '-r2')[:MAX_RISING_ROWS])
     dates = PriceSnapshot.objects.aggregate(latest=Max('date'), since=Min('date'))
     stats = {
@@ -76,7 +79,8 @@ def rising(request):
     return render(request, 'prices/rising.html', {
         'rows': rows,
         'stats': stats,
-        'floor': Decimal(settings.RISING['MIN_PRICE']),
+        'floor': Decimal(settings.RISING['MEASURE_MIN_PRICE']),
+        'prefs': prefs,
         'as_of': as_of,
         'window': window,
         'windows': settings.RISING['WINDOWS'],
@@ -105,9 +109,10 @@ def card_detail(request, id_product):
         {'date': row['date'].isoformat(), **{f: as_float(row[f]) for f in SERIES_FIELDS}}
         for row in card.snapshots.order_by('date').values('date', *SERIES_FIELDS)
     ]
+    prefs = RankingPreferences.for_user(request.user)
     latest_ranking = RisingCard.objects.aggregate(d=Max('date'))['d']
-    rising = RisingCard.objects.filter(
-        card=card, date=latest_ranking, window_days=settings.RISING['DEFAULT_WINDOW'], foil=False
+    rising = prefs.filter(
+        RisingCard.objects.filter(card=card, date=latest_ranking, window_days=prefs.window_days, foil=False)
     ).first()
     return render(request, 'prices/card_detail.html', {
         'card': card,
@@ -129,3 +134,17 @@ def recent_changes(card):
             else None
         )
     return rows[:RECENT_DAYS]
+
+
+def preferences(request):
+    prefs = RankingPreferences.for_user(request.user)
+    if request.method == 'POST' and 'reset' in request.POST:
+        prefs.delete()
+        messages.success(request, 'Thresholds reset to the defaults.')
+        return redirect('preferences')
+    form = PreferencesForm(request.POST or None, instance=prefs)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Thresholds saved.')
+        return redirect('preferences')
+    return render(request, 'prices/preferences.html', {'form': form})

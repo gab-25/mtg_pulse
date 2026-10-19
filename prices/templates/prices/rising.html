@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% load humanize %}
+{% load humanize prices_extras %}
 {% block title %}Rising cards · MTG Pulse{% endblock %}
 {% block content %}
 <div class="page-head">
   <div>
     <h1>Rising cards</h1>
-    <p class="muted">Trend price ≥ {{ floor }} € with a steady rise — single-day spikes are filtered out.</p>
+    <p class="muted thresholds">Gain ≥ {{ prefs.min_gain|percent }} · R² ≥ {{ prefs.min_r2|floatformat:2 }} · ≥ {{ prefs.min_rising_steps }} rising quarters · single-day jump ≤ {{ prefs.max_jump_share|percent }} of the gain · <a href="{% url 'preferences' %}">Change thresholds</a></p>
   </div>
   {% if as_of %}<p class="muted mono">Updated {{ as_of|date:"Y-m-d" }}</p>{% endif %}
 </div>

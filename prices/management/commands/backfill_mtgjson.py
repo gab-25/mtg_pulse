@@ -24,4 +24,4 @@ class Command(BaseCommand):
         self.stdout.write(f'{sync_expansions()} expansions synced')
         latest = PriceSnapshot.objects.aggregate(d=Max('date'))['d']
         if latest:
-            self.stdout.write(f'{compute_rising(latest)} rising entries for {latest}')
+            self.stdout.write(f'{compute_rising(latest)} rising measures for {latest}')

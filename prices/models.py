@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.conf import settings
 from django.db import models
 
 
@@ -85,6 +88,9 @@ class RisingCard(models.Model):
     gain_pct = models.FloatField()
     slope = models.FloatField()
     r2 = models.FloatField()
+    coverage = models.FloatField(default=1.0)
+    rising_steps = models.PositiveSmallIntegerField(default=3)
+    jump_share = models.FloatField(default=0.0)
 
     class Meta:
         constraints = [
@@ -93,3 +99,72 @@ class RisingCard(models.Model):
         indexes = [
             models.Index(fields=['date', 'window_days', 'foil', '-gain_pct'], name='rising_ranking_idx'),
         ]
+
+
+# Defaults read settings.RISING when a row is created (named functions so migrations can reference them).
+def default_min_price():
+    return Decimal(settings.RISING['MIN_PRICE'])
+
+
+def default_min_gain():
+    return settings.RISING['MIN_GAIN']
+
+
+def default_min_r2():
+    return settings.RISING['MIN_R2']
+
+
+def default_min_coverage():
+    return settings.RISING['MIN_COVERAGE']
+
+
+def default_min_rising_steps():
+    return settings.RISING['MIN_RISING_STEPS']
+
+
+def default_max_jump_share():
+    return settings.RISING['MAX_JUMP_SHARE']
+
+
+def default_window_days():
+    return settings.RISING['DEFAULT_WINDOW']
+
+
+class RankingPreferences(models.Model):
+    """A user's thresholds for the rising-cards ranking (defaults: settings.RISING)."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='ranking_preferences')
+    min_price = models.DecimalField(max_digits=10, decimal_places=2, default=default_min_price)
+    min_gain = models.FloatField(default=default_min_gain)
+    min_r2 = models.FloatField(default=default_min_r2)
+    min_coverage = models.FloatField(default=default_min_coverage)
+    min_rising_steps = models.PositiveSmallIntegerField(default=default_min_rising_steps)
+    max_jump_share = models.FloatField(default=default_max_jump_share)
+    window_days = models.PositiveSmallIntegerField(default=default_window_days)
+    foil = models.BooleanField(default=False)
+
+    @classmethod
+    def for_user(cls, user):
+        return cls.objects.get_or_create(user=user)[0]
+
+    def thresholds(self):
+        """Thresholds keyed as in settings.RISING, for prices.rising.passes."""
+        return {
+            'MIN_PRICE': self.min_price,
+            'MIN_GAIN': self.min_gain,
+            'MIN_R2': self.min_r2,
+            'MIN_COVERAGE': self.min_coverage,
+            'MIN_RISING_STEPS': self.min_rising_steps,
+            'MAX_JUMP_SHARE': self.max_jump_share,
+        }
+
+    def filter(self, measures, min_price=None):
+        """Restrict RisingCard measures to these thresholds (same rules as prices.rising.passes)."""
+        return measures.filter(
+            price__gte=self.min_price if min_price is None else min_price,
+            gain_pct__gte=self.min_gain,
+            r2__gte=self.min_r2,
+            coverage__gte=self.min_coverage,
+            rising_steps__gte=self.min_rising_steps,
+            jump_share__lte=self.max_jump_share,
+        )

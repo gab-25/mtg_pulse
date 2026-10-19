@@ -6,8 +6,10 @@ whose price is rising steadily.
 - **Daily import** of Cardmarket's public price guide (~123k singles: trend, low, averages,
   normal and foil) into a PostgreSQL + TimescaleDB hypertable — one row per card per day.
 - **Card page** with the card image, price history chart and recent price changes.
-- **Rising cards**: trend price ≥ 5 €, steady rise over 14/28/56 days, no single-day spikes.
-  Thresholds live in `RISING` in `mtg_pulse/settings.py`.
+- **Rising cards**: cards whose trend price rises steadily over 14/28/56 days. Each night the
+  app measures every card priced ≥ 1 € (gain, steadiness R², days with a price, rising
+  quarters, largest single-day jump); each user picks their own thresholds on the Settings
+  page. Defaults (≥ 5 €, +15%, no single-day spikes) live in `RISING` in `mtg_pulse/settings.py`.
 
 ## Running locally
 
@@ -39,7 +41,7 @@ publishes the guide (~02:40).
 - Idempotent: running it twice on the same day changes nothing.
 - If today's guide is not published yet it refetches every 10 minutes, up to 6 times.
 - Exits non-zero on failure; every run is logged in `ImportRun` (visible in `/admin/`).
-- After importing it recomputes the rising-cards ranking, refreshes expansion names (MTGJSON)
+- After importing it recomputes the rising measures, refreshes expansion names (MTGJSON)
   and card images plus set names (Scryfall's daily bulk file, ~80 MB). Those two refreshes
   are best-effort: a failure is logged and never fails the import.
 

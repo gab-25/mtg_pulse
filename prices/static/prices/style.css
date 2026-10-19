@@ -134,3 +134,17 @@ th:last-child, td:last-child { padding-right: 18px; }
 .pips span:nth-child(5) { background: #3e9b5c; }
 
 @media (max-width: 640px) { h1 { font-size: 28px; } .hide-sm { display: none; } }
+
+/* Settings */
+.settings-form { padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px 24px; }
+.setting { display: flex; flex-direction: column; gap: 6px; }
+.setting input { font-family: var(--mono); }
+.setting-check { flex-direction: row; align-items: center; gap: 10px; align-self: end; min-height: 44px; }
+.setting-check input { width: 20px; height: 20px; accent-color: var(--gold); }
+.help { margin: 0; font-size: 13px; color: var(--muted); }
+.field-error { margin: 0; font-size: 13px; color: var(--error); }
+.notice { margin: 0; padding: 10px 14px; border-radius: 8px; background: #1f3528; color: #8fe0b0; }
+.button-secondary { background: transparent; color: var(--fg-2); border: 1px solid var(--line); }
+.button-secondary:hover { background: var(--surface-2); color: var(--fg); }
+.thresholds { font-size: 14px; }

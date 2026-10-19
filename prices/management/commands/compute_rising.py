@@ -8,7 +8,7 @@ from prices.rising import compute_rising
 
 
 class Command(BaseCommand):
-    help = 'Recompute the rising-cards ranking for a date (default: latest snapshot date).'
+    help = 'Recompute the rising measures for a date (default: latest snapshot date); thresholds are applied per user.'
 
     def add_arguments(self, parser):
         parser.add_argument('--date', type=date.fromisoformat)
@@ -18,4 +18,4 @@ class Command(BaseCommand):
         if as_of is None:
             raise CommandError('No price snapshots yet')
         count = compute_rising(as_of)
-        self.stdout.write(f'{count} rising entries for {as_of}')
+        self.stdout.write(f'{count} rising measures for {as_of}')

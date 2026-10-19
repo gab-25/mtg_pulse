@@ -4,7 +4,9 @@ from decimal import Decimal
 import pytest
 
 from prices.models import Card, PriceSnapshot, RisingCard
-from prices.rising import compute_rising, evaluate
+from django.conf import settings
+
+from prices.rising import compute_rising, evaluate, measure, passes
 
 AS_OF = date(2026, 10, 19)
 
@@ -77,15 +79,54 @@ def test_nulls_ignored_and_14_day_window_works():
 
 
 @pytest.mark.django_db
-def test_compute_rising_writes_all_combinations():
-    card = Card.objects.create(id_product=1, name="Rising Star")
-    PriceSnapshot.objects.bulk_create(
-        [PriceSnapshot(card=card, date=d, trend=v) for d, v in ramp(10, 40, 56).items()]
-    )
-    assert compute_rising(AS_OF) == 3
+def test_compute_rising_measures_all_cards_above_measure_floor():
+    rising = Card.objects.create(id_product=1, name="Rising Star")
+    cheap = Card.objects.create(id_product=2, name="Cheap Riser")
+    bulk = Card.objects.create(id_product=3, name="Bulk")
+    rows = [PriceSnapshot(card=rising, date=d, trend=v) for d, v in ramp(10, 40, 56).items()]
+    rows += [PriceSnapshot(card=cheap, date=d, trend=v) for d, v in ramp(1, 2, 56).items()]
+    rows += [PriceSnapshot(card=bulk, date=d, trend=v) for d, v in ramp(0.1, 0.5, 56).items()]
+    PriceSnapshot.objects.bulk_create(rows)
+    assert compute_rising(AS_OF) == 6  # cards 1 and 2, three windows each, normal only
+    assert set(RisingCard.objects.values_list("card_id", flat=True)) == {1, 2}
     compute_rising(AS_OF)
-    assert RisingCard.objects.count() == 3
-    assert set(RisingCard.objects.values_list("window_days", "foil")) == {(14, False), (28, False), (56, False)}
+    assert RisingCard.objects.count() == 6
+
+
+@pytest.mark.django_db
+def test_compute_rising_keeps_only_latest_day():
+    card = Card.objects.create(id_product=1, name="Rising Star")
+    PriceSnapshot.objects.bulk_create([PriceSnapshot(card=card, date=d, trend=v) for d, v in ramp(10, 40, 57).items()])
+    compute_rising(AS_OF - timedelta(days=1))
+    compute_rising(AS_OF)
+    assert set(RisingCard.objects.values_list("date", flat=True)) == {AS_OF}
+
+
+def test_measure_reports_metrics_without_applying_thresholds():
+    m = measure(ramp(10, 11, 28), AS_OF, 28)  # +10%: below the default 15% but still measured
+    assert m.gain_pct == pytest.approx(0.10) and m.coverage == 1.0 and m.rising_steps == 3
+    assert 0 < m.jump_share < 0.1
+    assert not passes(m, settings.RISING)
+    assert passes(m, {**settings.RISING, "MIN_GAIN": 0.05})
+
+
+def test_measure_rejects_falling_cards_and_prices_below_measure_floor():
+    assert measure(ramp(13, 10, 28), AS_OF, 28) is None
+    assert measure(ramp(0.5, 0.99, 28), AS_OF, 28) is None
+    assert measure(ramp(1, 2, 28), AS_OF, 28) is not None
+
+
+def test_spike_is_measured_as_high_jump_share():
+    s = flat(10, 28)
+    s[AS_OF] = Decimal("14")
+    m = measure(s, AS_OF, 28)
+    assert m.jump_share == pytest.approx(1.0)
+    assert passes(m, {**settings.RISING, "MAX_JUMP_SHARE": 1.0})
+
+
+def test_min_r2_threshold():
+    m = measure(ramp(10, 13, 28), AS_OF, 28)
+    assert passes(m, {**settings.RISING, "MIN_R2": 0.99}) and not passes(m, {**settings.RISING, "MIN_R2": 1.01})
 
 
 def test_zero_first_price_does_not_crash():

@@ -1,9 +1,10 @@
-"""Detect cards whose price is rising steadily, and precompute the daily ranking."""
+"""Measure how steadily each card's price rises; thresholds are applied per user when reading."""
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import timedelta
 from decimal import Decimal
+from itertools import groupby
 
 from django.conf import settings
 from django.db import transaction
@@ -17,6 +18,9 @@ class RisingMetrics:
     gain_pct: float
     slope: float
     r2: float
+    coverage: float
+    rising_steps: int
+    jump_share: float
 
 
 def linear_fit(xs, ys):
@@ -31,10 +35,13 @@ def linear_fit(xs, ys):
     return slope, r2
 
 
-def evaluate(series, as_of, window_days):
-    """Return metrics if the series is rising steadily over the window ending on as_of, else None.
+def measure(series, as_of, window_days):
+    """Metrics of the window ending on as_of, or None if the card is not rising at all.
 
-    `series` maps date -> price (None for missing prices); dates outside the window are ignored.
+    Only the base requirements are applied here (a price on as_of above the measure floor, a positive
+    gain and slope, every bucket populated and the last one above the first); user thresholds are
+    applied afterwards with `passes` or as a database filter. `series` maps date -> price (None when
+    missing); dates outside the window are ignored.
     """
     rules = settings.RISING
     start = as_of - timedelta(days=window_days - 1)
@@ -42,14 +49,12 @@ def evaluate(series, as_of, window_days):
         ((d - start).days, float(v)) for d, v in series.items() if v is not None and v > 0 and start <= d <= as_of
     )
     latest = series.get(as_of)
-    if latest is None or latest < Decimal(rules['MIN_PRICE']):
-        return None
-    if len(points) < rules['MIN_COVERAGE'] * window_days:
+    if latest is None or latest < Decimal(rules['MEASURE_MIN_PRICE']) or len(points) < 2:
         return None
 
     first, last = points[0][1], points[-1][1]
     gain = (last - first) / first
-    if gain < rules['MIN_GAIN']:
+    if gain <= 0:
         return None
 
     xs, ys = [p[0] for p in points], [p[1] for p in points]
@@ -63,48 +68,64 @@ def evaluate(series, as_of, window_days):
     if len(buckets) < rules['BUCKETS']:
         return None
     averages = [sum(buckets[k]) / len(buckets[k]) for k in range(rules['BUCKETS'])]
-    rising_steps = sum(1 for a, b in zip(averages, averages[1:]) if b >= a)
-    if rising_steps < rules['MIN_RISING_STEPS'] or averages[-1] <= averages[0]:
+    if averages[-1] <= averages[0]:
         return None
 
     max_jump = max((b - a for a, b in zip(ys, ys[1:])), default=0)
-    if max_jump > rules['MAX_JUMP_SHARE'] * (last - first):
-        return None
+    return RisingMetrics(
+        price=latest,
+        gain_pct=gain,
+        slope=slope,
+        r2=r2,
+        coverage=len(points) / window_days,
+        rising_steps=sum(1 for a, b in zip(averages, averages[1:]) if b >= a),
+        jump_share=max(max_jump, 0) / (last - first),
+    )
 
-    return RisingMetrics(price=latest, gain_pct=gain, slope=slope, r2=r2)
+
+def passes(metrics, thresholds):
+    """Whether measured metrics meet thresholds (keys as in settings.RISING)."""
+    return (
+        metrics.price >= Decimal(thresholds['MIN_PRICE'])
+        and metrics.gain_pct >= thresholds['MIN_GAIN']
+        and metrics.r2 >= thresholds['MIN_R2']
+        and metrics.coverage >= thresholds['MIN_COVERAGE']
+        and metrics.rising_steps >= thresholds['MIN_RISING_STEPS']
+        and metrics.jump_share <= thresholds['MAX_JUMP_SHARE']
+    )
+
+
+def evaluate(series, as_of, window_days):
+    """Metrics if the series is rising under the default thresholds, else None."""
+    metrics = measure(series, as_of, window_days)
+    return metrics if metrics and passes(metrics, settings.RISING) else None
+
+
+def card_series(as_of, field, days):
+    """Yield (card_id, {date: price}) for cards priced above the measure floor on as_of, one card at a time."""
+    floor = Decimal(settings.RISING['MEASURE_MIN_PRICE'])
+    candidates = PriceSnapshot.objects.filter(date=as_of, **{f'{field}__gte': floor}).values('card_id')
+    rows = (
+        PriceSnapshot.objects.filter(card_id__in=candidates, date__gt=as_of - timedelta(days=days), date__lte=as_of)
+        .order_by('card_id', 'date')
+        .values_list('card_id', 'date', field)
+        .iterator(chunk_size=20000)
+    )
+    for card_id, group in groupby(rows, key=lambda row: row[0]):
+        yield card_id, {day: value for _, day, value in group}
 
 
 def compute_rising(as_of):
-    """Recompute the RisingCard ranking for as_of across all windows, normal and foil."""
-    rules = settings.RISING
-    min_price = Decimal(rules['MIN_PRICE'])
-    longest = max(rules['WINDOWS'])
+    """Replace the stored measures with those for as_of, across all windows, normal and foil."""
+    windows = settings.RISING['WINDOWS']
     rows = []
     for foil in (False, True):
-        field = 'trend_foil' if foil else 'trend'
-        candidates = PriceSnapshot.objects.filter(date=as_of, **{f'{field}__gte': min_price}).values('card_id')
-        series = defaultdict(dict)
-        for card_id, day, value in PriceSnapshot.objects.filter(
-            card_id__in=candidates, date__gt=as_of - timedelta(days=longest), date__lte=as_of
-        ).values_list('card_id', 'date', field):
-            series[card_id][day] = value
-        for card_id, card_series in series.items():
-            for window in rules['WINDOWS']:
-                metrics = evaluate(card_series, as_of, window)
+        for card_id, series in card_series(as_of, 'trend_foil' if foil else 'trend', max(windows)):
+            for window in windows:
+                metrics = measure(series, as_of, window)
                 if metrics:
-                    rows.append(
-                        RisingCard(
-                            date=as_of,
-                            card_id=card_id,
-                            window_days=window,
-                            foil=foil,
-                            price=metrics.price,
-                            gain_pct=metrics.gain_pct,
-                            slope=metrics.slope,
-                            r2=metrics.r2,
-                        )
-                    )
+                    rows.append(RisingCard(date=as_of, card_id=card_id, window_days=window, foil=foil, **asdict(metrics)))
     with transaction.atomic():
-        RisingCard.objects.filter(date=as_of).delete()
+        RisingCard.objects.all().delete()
         RisingCard.objects.bulk_create(rows, batch_size=5000)
     return len(rows)

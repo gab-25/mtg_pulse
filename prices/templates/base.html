@@ -19,6 +19,7 @@
       <nav class="nav" aria-label="Main">
         <a href="{% url 'rising' %}"{% if current == 'rising' %} aria-current="page"{% endif %}>Rising</a>
         <a href="{% url 'search' %}"{% if current == 'search' %} aria-current="page"{% endif %}>Search</a>
+        <a href="{% url 'preferences' %}"{% if current == 'preferences' %} aria-current="page"{% endif %}>Settings</a>
       </nav>
       {% if current != 'search' %}
       <form class="nav-search" action="{% url 'search' %}" method="get" role="search">

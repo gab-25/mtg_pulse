@@ -159,11 +159,15 @@ CARDMARKET = {
 
 # Rising cards detection (see prices/rising.py)
 
+# Measures are computed nightly for every card priced at least MEASURE_MIN_PRICE; the other
+# values are the default thresholds, which each user can change on the Settings page.
 RISING = {
+    'MEASURE_MIN_PRICE': '1.00',
     'MIN_PRICE': '5.00',
     'WINDOWS': [14, 28, 56],
     'DEFAULT_WINDOW': 28,
     'MIN_GAIN': 0.15,
+    'MIN_R2': 0.0,
     'MIN_COVERAGE': 0.8,
     'BUCKETS': 4,
     'MIN_RISING_STEPS': 2,

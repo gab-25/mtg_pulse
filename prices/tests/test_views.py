@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from prices.models import Card, Expansion, PriceSnapshot, RisingCard
+from prices.models import Card, Expansion, PriceSnapshot, RankingPreferences, RisingCard
 
 pytestmark = pytest.mark.django_db
 
@@ -67,11 +67,11 @@ def rising_rows():
         )
 
 
-def test_rising_min_price_cannot_go_below_floor(admin_client, rising_rows):
-    r = admin_client.get("/", {"min_price": "1"})
-    assert r.context["min_price"] == Decimal("5.00") and len(r.context["rows"]) == 2
+def test_rising_min_price_cannot_go_below_measure_floor(admin_client, rising_rows):
+    r = admin_client.get("/", {"min_price": "0.5"})
+    assert r.context["min_price"] == Decimal("1.00") and len(r.context["rows"]) == 2
     assert len(admin_client.get("/", {"min_price": "10"}).context["rows"]) == 1
-    assert admin_client.get("/", {"min_price": "abc"}).context["min_price"] == Decimal("5.00")
+    assert admin_client.get("/", {"min_price": "abc"}).context["min_price"] == Decimal("5.00")  # user's default
 
 
 def test_rising_sorted_by_gain(admin_client, rising_rows):
@@ -146,3 +146,68 @@ def test_logout_redirects_to_login(admin_client):
     r = admin_client.post("/accounts/logout/")
     assert r.status_code == 302 and r.url == "/accounts/login/"
     assert admin_client.get("/").status_code == 302
+
+
+def set_prefs(user, **changes):
+    prefs = RankingPreferences.for_user(user)
+    for field, value in changes.items():
+        setattr(prefs, field, value)
+    prefs.save()
+
+
+def test_rising_applies_user_thresholds(admin_client, admin_user, rising_rows):
+    set_prefs(admin_user, min_gain=0.3)
+    r = admin_client.get("/")
+    assert [row.card_id for row in r.context["rows"]] == [2] and r.context["stats"]["rising"] == 1
+
+
+def test_rising_defaults_to_user_window_and_version(admin_client, admin_user, rising_rows):
+    set_prefs(admin_user, foil=True, window_days=56)
+    r = admin_client.get("/")
+    assert (r.context["window"], r.context["foil"], len(r.context["rows"])) == (56, True, 0)
+    assert len(admin_client.get("/", {"window": "28", "foil": "0"}).context["rows"]) == 2
+
+
+def test_card_badge_respects_user_thresholds(admin_client, admin_user, rising_rows):
+    assert admin_client.get("/cards/2/").context["rising"] is not None
+    set_prefs(admin_user, min_gain=3.0)
+    assert admin_client.get("/cards/2/").context["rising"] is None
+
+
+def test_settings_page_saves_preferences(admin_client, admin_user):
+    assert admin_client.get("/settings/").status_code == 200
+    r = admin_client.post("/settings/", {
+        "min_price": "10", "min_gain": "25", "min_r2": "0.8", "min_coverage": "90",
+        "min_rising_steps": "3", "max_jump_share": "30", "window_days": "56", "foil": "on",
+    })
+    assert r.status_code == 302 and r.url == "/settings/"
+    prefs = RankingPreferences.for_user(admin_user)
+    assert (prefs.min_price, prefs.min_gain, prefs.min_r2, prefs.min_coverage) == (Decimal("10"), 0.25, 0.8, 0.9)
+    assert (prefs.min_rising_steps, prefs.max_jump_share, prefs.window_days, prefs.foil) == (3, 0.3, 56, True)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("min_price", "0.5"), ("min_gain", "-1"), ("min_r2", "1.5"), ("min_coverage", "120"),
+    ("min_rising_steps", "4"), ("max_jump_share", "0"), ("window_days", "30"),
+])
+def test_settings_page_rejects_invalid_values(admin_client, admin_user, field, value):
+    data = {"min_price": "5", "min_gain": "15", "min_r2": "0", "min_coverage": "80",
+            "min_rising_steps": "2", "max_jump_share": "50", "window_days": "28", field: value}
+    r = admin_client.post("/settings/", data)
+    assert r.status_code == 200 and r.context["form"].errors.get(field)
+    assert RankingPreferences.for_user(admin_user).min_gain == 0.15
+
+
+def test_settings_reset_restores_defaults(admin_client, admin_user):
+    set_prefs(admin_user, min_gain=0.9, foil=True)
+    r = admin_client.post("/settings/", {"reset": "1"})
+    assert r.status_code == 302
+    prefs = RankingPreferences.for_user(admin_user)
+    assert (prefs.min_gain, prefs.foil) == (0.15, False)
+
+
+def test_preferences_are_per_user(client, admin_client, admin_user, django_user_model, rising_rows):
+    set_prefs(admin_user, min_gain=0.3)
+    other = django_user_model.objects.create_user("other", password="pw-123456789")
+    client.force_login(other)
+    assert len(client.get("/").context["rows"]) == 2
