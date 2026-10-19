@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,9 +24,11 @@ def env_list(name):
     return [v.strip() for v in os.environ.get(name, '').split(',') if v.strip()]
 
 
-SECRET_KEY = os.environ['SECRET_KEY']
-
 DEBUG = os.environ.get('DEBUG', '0') == '1'
+
+SECRET_KEY = os.environ['SECRET_KEY']
+if not DEBUG and (SECRET_KEY == 'change-me' or len(SECRET_KEY) < 50):
+    raise ImproperlyConfigured('SECRET_KEY must be a random string of at least 50 characters when DEBUG is off')
 
 ALLOWED_HOSTS = env_list('ALLOWED_HOSTS')
 

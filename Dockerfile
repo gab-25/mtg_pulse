@@ -13,7 +13,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY . .
-RUN SECRET_KEY=build DATABASE_URL=postgres://build@localhost/build python manage.py collectstatic --noinput \
+RUN DEBUG=1 SECRET_KEY=build DATABASE_URL=postgres://build@localhost/build python manage.py collectstatic --noinput \
     && useradd --create-home --uid 1000 app \
     && chmod +x docker-entrypoint.sh
 

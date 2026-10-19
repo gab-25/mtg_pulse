@@ -39,7 +39,7 @@ def evaluate(series, as_of, window_days):
     rules = settings.RISING
     start = as_of - timedelta(days=window_days - 1)
     points = sorted(
-        ((d - start).days, float(v)) for d, v in series.items() if v is not None and start <= d <= as_of
+        ((d - start).days, float(v)) for d, v in series.items() if v is not None and v > 0 and start <= d <= as_of
     )
     latest = series.get(as_of)
     if latest is None or latest < Decimal(rules['MIN_PRICE']):

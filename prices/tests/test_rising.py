@@ -86,3 +86,9 @@ def test_compute_rising_writes_all_combinations():
     compute_rising(AS_OF)
     assert RisingCard.objects.count() == 3
     assert set(RisingCard.objects.values_list("window_days", "foil")) == {(14, False), (28, False), (56, False)}
+
+
+def test_zero_first_price_does_not_crash():
+    s = ramp(10, 13, 28)
+    s[min(s)] = Decimal("0.00")
+    assert evaluate(s, AS_OF, 28) is None or evaluate(s, AS_OF, 28).gain_pct > 0

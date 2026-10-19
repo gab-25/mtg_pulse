@@ -12,7 +12,7 @@ whose price is rising steadily.
 ## Running locally
 
 ```sh
-cp .env.example .env          # edit SECRET_KEY; DEBUG=1 for local development
+cp .env.example .env          # set SECRET_KEY (50+ random chars; required when DEBUG=0)
 docker compose up -d --build  # db (TimescaleDB) + web on http://localhost:8000
 docker compose run --rm web python manage.py createsuperuser
 ```
@@ -55,6 +55,13 @@ Other commands: `compute_rising [--date YYYY-MM-DD]`, `sync_expansions`.
 
 HTTPS is expected to be terminated by the reverse proxy / ingress in front of the app, which
 must set `X-Forwarded-Proto`. With `DEBUG=0` session cookies are `Secure`.
+
+In compose, Postgres and the app are bound to `127.0.0.1` only: expose the app through the
+HTTPS proxy, never directly. The app has no login rate limiting of its own — configure it on
+the proxy / ingress (e.g. limit `POST /accounts/login/` and `/admin/login/`).
+
+The TimescaleDB image is pinned (`2.30.2-pg17`). To upgrade, change the tag, then run
+`ALTER EXTENSION timescaledb UPDATE;` in the database.
 
 ## Development
 
