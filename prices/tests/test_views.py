@@ -135,3 +135,14 @@ def test_card_detail_rising_badge_and_recent_changes(admin_client):
 def test_card_detail_without_rising_has_no_badge(admin_client):
     Card.objects.create(id_product=1, name="Quiet Card")
     assert admin_client.get("/cards/1/").context["rising"] is None
+
+
+@pytest.mark.parametrize("url", ["/accounts/password_change/", "/accounts/password_reset/", "/accounts/reset/done/"])
+def test_only_login_and_logout_routes_exist(admin_client, url):
+    assert admin_client.get(url).status_code == 404
+
+
+def test_logout_redirects_to_login(admin_client):
+    r = admin_client.post("/accounts/logout/")
+    assert r.status_code == 302 and r.url == "/accounts/login/"
+    assert admin_client.get("/").status_code == 302
