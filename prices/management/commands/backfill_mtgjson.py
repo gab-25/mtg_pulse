@@ -19,7 +19,7 @@ class Command(BaseCommand):
             self.stdout.write('Downloading MTGJSON files...')
             download(ALL_PRICES_URL, prices)
             download(ALL_IDENTIFIERS_URL, identifiers)
-            written = backfill(prices, identifiers)
+            written = backfill(prices, identifiers, log=self.stdout.write)
         self.stdout.write(f'{written} backfilled rows inserted')
         self.stdout.write(f'{sync_expansions()} expansions synced')
         latest = PriceSnapshot.objects.aggregate(d=Max('date'))['d']

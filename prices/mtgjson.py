@@ -44,17 +44,22 @@ def mcm_ids(identifiers_path):
         }
 
 
-def backfill(prices_path, identifiers_path):
-    """Load the prices into a temp table with COPY, then insert them; existing rows (e.g. from
-    Cardmarket) are kept. Printings sharing an mcmId are merged per day. Returns rows inserted."""
+def backfill(prices_path, identifiers_path, log=lambda message: None):
+    """Load the prices into a temp table with COPY, drop the days we already have, then insert the
+    rest; existing rows (e.g. from Cardmarket) are kept. Printings sharing an mcmId are merged per
+    day. Returns rows inserted."""
+    log('Reading MTGJSON identifiers...')
     ids = mcm_ids(identifiers_path)
     cards = set()
     table = PriceSnapshot._meta.db_table
     with transaction.atomic(), connection.cursor() as cursor:
+        # Enough to keep the GROUP BY and the hash anti-join in memory on a small database.
+        cursor.execute("SET LOCAL work_mem = '128MB'")
         cursor.execute(
             'CREATE TEMP TABLE mtgjson_prices (card_id integer, date date, trend numeric(10, 2), '
             'trend_foil numeric(10, 2))'
         )
+        log('Copying MTGJSON prices...')
         with open_json(prices_path) as f, cursor.copy('COPY mtgjson_prices FROM STDIN') as copy:
             for uuid, formats in ijson.kvitems(f, 'data'):
                 card_id = ids.get(uuid)
@@ -65,15 +70,29 @@ def backfill(prices_path, identifiers_path):
                 for day in normal.keys() | foil.keys():
                     copy.write_row((card_id, day, price(normal.get(day)), price(foil.get(day))))
                 cards.add(card_id)
+        log('Merging printings and skipping days already stored...')
+        cursor.execute(
+            'CREATE TEMP TABLE mtgjson_merged AS '
+            'SELECT card_id, date, max(trend) AS trend, max(trend_foil) AS trend_foil '
+            'FROM mtgjson_prices GROUP BY card_id, date'
+        )
+        cursor.execute('ANALYZE mtgjson_merged')
+        # One hash anti-join instead of a primary key lookup per row in ON CONFLICT, which reads
+        # the index from disk for every row once the table outgrows the buffer cache.
+        cursor.execute(
+            f'DELETE FROM mtgjson_merged m USING {table} p '
+            'WHERE p.card_id = m.card_id AND p.date = m.date '
+            'AND p.date BETWEEN (SELECT min(date) FROM mtgjson_merged) AND (SELECT max(date) FROM mtgjson_merged)'
+        )
         ensure_cards(cards)
+        log('Inserting new rows...')
         cursor.execute(
             f'INSERT INTO {table} (card_id, date, trend, trend_foil, source) '
-            'SELECT card_id, date, max(trend), max(trend_foil), %s FROM mtgjson_prices '
-            'GROUP BY card_id, date ON CONFLICT DO NOTHING',
+            'SELECT card_id, date, trend, trend_foil, %s FROM mtgjson_merged ON CONFLICT DO NOTHING',
             [PriceSnapshot.SOURCE_MTGJSON],
         )
         inserted = cursor.rowcount
-        cursor.execute('DROP TABLE mtgjson_prices')
+        cursor.execute('DROP TABLE mtgjson_prices, mtgjson_merged')
     return inserted
 
 
