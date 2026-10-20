@@ -53,8 +53,6 @@ def backfill(prices_path, identifiers_path, log=lambda message: None):
     cards = set()
     table = PriceSnapshot._meta.db_table
     with transaction.atomic(), connection.cursor() as cursor:
-        # Enough to keep the GROUP BY and the hash anti-join in memory on a small database.
-        cursor.execute("SET LOCAL work_mem = '128MB'")
         cursor.execute(
             'CREATE TEMP TABLE mtgjson_prices (card_id integer, date date, trend numeric(10, 2), '
             'trend_foil numeric(10, 2))'
