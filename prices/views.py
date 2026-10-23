@@ -2,7 +2,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
-from django.db.models import Max, Min, OuterRef, Subquery
+from django.db.models import Case, IntegerField, Max, Min, OuterRef, Q, Subquery, Value, When
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.vary import vary_on_headers
@@ -104,11 +104,16 @@ def search(request):
     results = []
     if len(q) >= 2:
         latest = PriceSnapshot.objects.filter(card=OuterRef('pk')).order_by('-date')
+        # Every word must appear somewhere in the name, ignoring case and accents.
+        words = Q(*(Q(name__unaccent__icontains=word) for word in q.split()))
+        starts_with_query = Case(
+            When(name__unaccent__istartswith=q, then=Value(0)), default=Value(1), output_field=IntegerField()
+        )
         results = (
-            Card.objects.filter(name__icontains=q)
+            Card.objects.filter(words)
             .select_related('expansion')
             .annotate(latest_trend=Subquery(latest.values('trend')[:1]))
-            .order_by('name', 'id_product')[:MAX_SEARCH_RESULTS]
+            .order_by(starts_with_query, 'name', 'id_product')[:MAX_SEARCH_RESULTS]
         )
     template = 'prices/search.html#results' if is_htmx_swap(request) else 'prices/search.html'
     return render(request, template, {'q': q, 'results': results})
