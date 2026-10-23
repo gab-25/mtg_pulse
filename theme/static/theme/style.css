@@ -37,8 +37,10 @@ h2 { font-size: 19px; margin: 0; }
 .nav a[aria-current="page"] { color: var(--fg); background: var(--surface-2); box-shadow: inset 0 -2px 0 var(--gold); }
 .nav-search { display: flex; flex: 0 1 320px; min-width: 200px; }
 .nav-search input { flex: 1; min-width: 0; height: 40px; }
-.link-button { border: 0; background: none; padding: 0; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
-.link-button:hover { color: var(--fg); }
+.logout { margin-left: auto; }
+.logout-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: 40px; height: 40px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--fg-2); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; }
+.logout-button:hover { background: var(--surface-2); color: var(--fg); }
+@media (max-width: 640px) { .logout-button { padding: 0; } }
 
 /* Forms */
 input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; height: 44px; }
