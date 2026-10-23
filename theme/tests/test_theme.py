@@ -19,6 +19,6 @@ def test_percent_filter():
     assert template.render({"value": 0.15}) == "15%"
 
 
-def test_footer_shows_pyproject_version(admin_client, settings):
+def test_brand_shows_pyproject_version(admin_client, settings):
     settings.VERSION = "9.9.9"
-    assert '<footer class="footer">v9.9.9</footer>' in admin_client.get("/").content.decode()
+    assert '<span class="brand-version">v9.9.9</span>' in admin_client.get("/").content.decode()
