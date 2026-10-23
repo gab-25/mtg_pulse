@@ -28,6 +28,28 @@ def test_search_handles_special_chars(admin_client):
     assert b"Altar" not in admin_client.get("/search/", {"q": "%"}).content
 
 
+def test_search_matches_words_in_any_order(admin_client):
+    Card.objects.create(id_product=1, name="Mother of Runes")
+    Card.objects.create(id_product=2, name="Runeclaw Bear")
+    for q in ["mother rune", "rune mother", "MOTH run"]:
+        content = admin_client.get("/search/", {"q": q}).content
+        assert b"Mother of Runes" in content and b"Runeclaw Bear" not in content
+
+
+def test_search_ignores_accents(admin_client):
+    Card.objects.create(id_product=1, name="Æther Vial")
+    Card.objects.create(id_product=2, name="Lim-Dûl the Necromancer")
+    assert b"Vial" in admin_client.get("/search/", {"q": "aether"}).content
+    assert b"Necromancer" in admin_client.get("/search/", {"q": "lim-dul"}).content
+
+
+def test_search_lists_names_starting_with_query_first(admin_client):
+    Card.objects.create(id_product=1, name="Arc Lightning")
+    Card.objects.create(id_product=2, name="Lightning Bolt")
+    content = admin_client.get("/search/", {"q": "lightning"}).content.decode()
+    assert content.index("Lightning Bolt") < content.index("Arc Lightning")
+
+
 def test_search_shows_expansion_and_latest_trend(admin_client):
     exp = Expansion.objects.create(id_expansion=45, name="Fifth Dawn")
     card = Card.objects.create(id_product=1, name="Altar's Light", expansion=exp)
