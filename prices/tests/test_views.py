@@ -211,3 +211,29 @@ def test_preferences_are_per_user(client, admin_client, admin_user, django_user_
     other = django_user_model.objects.create_user("other", password="pw-123456789")
     client.force_login(other)
     assert len(client.get("/").context["rows"]) == 2
+
+
+HTMX = {"HTTP_HX_REQUEST": "true"}
+
+
+def test_rising_htmx_returns_results_and_stats_only(admin_client, rising_rows):
+    r = admin_client.get("/", {"min_price": "10"}, **HTMX)
+    content = r.content.decode()
+    assert '<div id="results"' in content and "Card 2" in content and "Card 1" not in content
+    assert 'id="stats" hx-swap-oob="true"' in content
+    assert "<html" not in content and 'name="window"' not in content
+    assert "HX-Request" in r["Vary"]
+
+
+def test_search_htmx_returns_results_only(admin_client):
+    Card.objects.create(id_product=1, name="Altar's Light")
+    content = admin_client.get("/search/", {"q": "altar"}, **HTMX).content.decode()
+    assert '<div id="results"' in content and "Altar&#x27;s Light" in content
+    assert "<html" not in content and 'name="q"' not in content
+    assert "at least 2 characters" in admin_client.get("/search/", {"q": "a"}, **HTMX).content.decode()
+
+
+def test_htmx_history_restore_gets_full_page(admin_client, rising_rows):
+    for url in ["/", "/search/"]:
+        content = admin_client.get(url, HTTP_HX_REQUEST="true", HTTP_HX_HISTORY_RESTORE_REQUEST="true").content
+        assert b"<html" in content and b'id="results"' in content

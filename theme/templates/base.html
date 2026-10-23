@@ -34,6 +34,7 @@
   </header>
   <main>{% block content %}{% endblock %}</main>
   <footer class="footer">v{{ version }}</footer>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.10/htmx.min.js"></script>
   <script src="{% static 'theme/preview.js' %}"></script>
 {% endblock %}
 {% block scripts %}{% endblock %}

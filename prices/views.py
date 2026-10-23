@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db.models import Max, Min, OuterRef, Subquery
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.vary import vary_on_headers
 
 from .forms import PreferencesForm
 from .models import Card, PriceSnapshot, RankingPreferences, RisingCard
@@ -37,6 +38,11 @@ def parse_min_price(raw, default):
     return max(value, floor) if value.is_finite() else default
 
 
+def is_htmx_swap(request):
+    """An htmx request that swaps part of the page; history restores need the whole page."""
+    return request.headers.get('HX-Request') == 'true' and request.headers.get('HX-History-Restore-Request') != 'true'
+
+
 def sparkline(values, width=120, height=28):
     """SVG polyline points for a small trend line."""
     values = [v for v in values if v is not None]
@@ -48,6 +54,7 @@ def sparkline(values, width=120, height=28):
     return ' '.join(f'{i * step:.1f},{height - (v - low) / span * height:.1f}' for i, v in enumerate(values))
 
 
+@vary_on_headers('HX-Request')
 def rising(request):
     prefs = RankingPreferences.for_user(request.user)
     window = parse_window(request.GET.get('window'), prefs.window_days)
@@ -76,7 +83,9 @@ def rising(request):
         for row in rows:
             row.sparkline = sparkline(history.get(row.card_id, []))
             row.gain_display = row.gain_pct * 100
-    return render(request, 'prices/rising.html', {
+    swap = is_htmx_swap(request)
+    return render(request, 'prices/rising.html#results' if swap else 'prices/rising.html', {
+        'oob': swap,
         'rows': rows,
         'stats': stats,
         'floor': Decimal(settings.RISING['MEASURE_MIN_PRICE']),
@@ -89,6 +98,7 @@ def rising(request):
     })
 
 
+@vary_on_headers('HX-Request')
 def search(request):
     q = request.GET.get('q', '').strip()
     results = []
@@ -100,7 +110,8 @@ def search(request):
             .annotate(latest_trend=Subquery(latest.values('trend')[:1]))
             .order_by('name', 'id_product')[:MAX_SEARCH_RESULTS]
         )
-    return render(request, 'prices/search.html', {'q': q, 'results': results})
+    template = 'prices/search.html#results' if is_htmx_swap(request) else 'prices/search.html'
+    return render(request, template, {'q': q, 'results': results})
 
 
 def card_detail(request, id_product):

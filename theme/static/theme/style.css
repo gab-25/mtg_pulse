@@ -69,6 +69,8 @@ main { max-width: 1200px; margin: 0 auto; padding: 32px 24px 56px; display: flex
 .filters > * { flex: none; }
 .filters .field { display: flex; flex-direction: column; gap: 6px; }
 .filters input[type="number"] { width: 120px; font-family: var(--mono); }
+#results { transition: opacity 150ms; }
+#results.htmx-request { opacity: 0.55; }
 
 /* Tables */
 .table-scroll { overflow-x: auto; }

@@ -2,13 +2,17 @@
 {% block title %}Search · MTG Pulse{% endblock %}
 {% block content %}
 <h1>Search cards</h1>
-<form class="filters" method="get" role="search" style="padding: 0">
+<form class="filters" method="get" role="search" style="padding: 0" hx-get="{% url 'search' %}"
+      hx-trigger="input changed delay:300ms from:#search-q, search from:#search-q, submit"
+      hx-target="#results" hx-swap="outerHTML" hx-replace-url="true" hx-indicator="#results">
   <div class="field" style="flex: 1 1 420px; min-width: 0">
     <label class="label" for="search-q">Card name</label>
     <input id="search-q" type="search" name="q" value="{{ q }}" autofocus>
   </div>
-  <button type="submit" class="button">Search</button>
+  <noscript><button type="submit" class="button">Search</button></noscript>
 </form>
+{% partialdef results inline %}
+<div id="results">
 {% if q|length < 2 %}
   <p class="muted">Type at least 2 characters of a card name.</p>
 {% elif not results %}
@@ -32,4 +36,6 @@
   </div>
 </section>
 {% endif %}
+</div>
+{% endpartialdef %}
 {% endblock %}
