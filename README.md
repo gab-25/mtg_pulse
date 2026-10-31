@@ -10,6 +10,9 @@ whose price is rising steadily.
   app measures every card priced ≥ 1 € (gain, steadiness R², days with a price, rising
   quarters, largest single-day jump); each user picks their own thresholds on their Profile
   page. Defaults (≥ 5 €, +15%, no single-day spikes) live in `RISING` in `mtg_pulse/settings.py`.
+- **My cards**: each user records the printings they own (copies, normal or foil, condition,
+  price paid) and sees the collection valued at the latest trend price, with the change over the
+  last 7 days.
 
 ## Running locally
 

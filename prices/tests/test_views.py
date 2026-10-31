@@ -11,7 +11,7 @@ AS_OF = date(2026, 10, 19)
 
 
 def test_pages_require_login(client):
-    for url in ["/", "/search/", "/cards/1/", "/profile/", "/accounts/password/"]:
+    for url in ["/", "/search/", "/cards/1/", "/my-cards/", "/profile/", "/accounts/password/"]:
         r = client.get(url)
         assert r.status_code == 302 and r.url.startswith("/accounts/login/")
 

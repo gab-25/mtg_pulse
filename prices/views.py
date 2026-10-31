@@ -2,13 +2,16 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Case, IntegerField, Max, Min, OuterRef, Q, Subquery, Value, When
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.http import urlencode
 from django.views.decorators.vary import vary_on_headers
 
-from .forms import AccountForm, PreferencesForm
-from .models import Card, ImportRun, PriceSnapshot, RankingPreferences, RisingCard
+from .forms import AccountForm, OwnedCardForm, PreferencesForm
+from .models import Card, ImportRun, OwnedCard, PriceSnapshot, RankingPreferences, RisingCard
 
 SERIES_FIELDS = ['trend', 'low', 'avg30', 'trend_foil', 'low_foil', 'avg30_foil']
 MAX_RISING_ROWS = 200
@@ -98,23 +101,28 @@ def rising(request):
     })
 
 
+def search_cards(q):
+    """Printings whose name has every word of q, ignoring case and accents, with their latest trend prices."""
+    latest = PriceSnapshot.objects.filter(card=OuterRef('pk')).order_by('-date')
+    words = Q(*(Q(name__unaccent__icontains=word) for word in q.split()))
+    starts_with_query = Case(
+        When(name__unaccent__istartswith=q, then=Value(0)), default=Value(1), output_field=IntegerField()
+    )
+    return (
+        Card.objects.filter(words)
+        .select_related('expansion')
+        .annotate(
+            latest_trend=Subquery(latest.values('trend')[:1]),
+            latest_trend_foil=Subquery(latest.values('trend_foil')[:1]),
+        )
+        .order_by(starts_with_query, 'name', 'id_product')[:MAX_SEARCH_RESULTS]
+    )
+
+
 @vary_on_headers('HX-Request')
 def search(request):
     q = request.GET.get('q', '').strip()
-    results = []
-    if len(q) >= 2:
-        latest = PriceSnapshot.objects.filter(card=OuterRef('pk')).order_by('-date')
-        # Every word must appear somewhere in the name, ignoring case and accents.
-        words = Q(*(Q(name__unaccent__icontains=word) for word in q.split()))
-        starts_with_query = Case(
-            When(name__unaccent__istartswith=q, then=Value(0)), default=Value(1), output_field=IntegerField()
-        )
-        results = (
-            Card.objects.filter(words)
-            .select_related('expansion')
-            .annotate(latest_trend=Subquery(latest.values('trend')[:1]))
-            .order_by(starts_with_query, 'name', 'id_product')[:MAX_SEARCH_RESULTS]
-        )
+    results = search_cards(q) if len(q) >= 2 else []
     template = 'prices/search.html#results' if is_htmx_swap(request) else 'prices/search.html'
     return render(request, template, {'q': q, 'results': results})
 
@@ -174,4 +182,86 @@ def profile(request):
         'account_form': account_form,
         'prefs_form': prefs_form,
         'last_import': ImportRun.objects.order_by('-started_at').first(),
+    })
+
+
+def owned_rows(user):
+    """The user's cards with today's and last week's trend for their finish, most valuable first."""
+    latest_date = PriceSnapshot.objects.aggregate(d=Max('date'))['d']
+    latest = PriceSnapshot.objects.filter(card=OuterRef('card')).order_by('-date')
+    week_ago = latest.filter(date__lte=latest_date - timedelta(days=7)) if latest_date else latest.none()
+    rows = list(
+        user.owned_cards.select_related('card__expansion').annotate(
+            trend=Subquery(latest.values('trend')[:1]),
+            trend_foil=Subquery(latest.values('trend_foil')[:1]),
+            week_trend=Subquery(week_ago.values('trend')[:1]),
+            week_trend_foil=Subquery(week_ago.values('trend_foil')[:1]),
+        )
+    )
+    for row in rows:
+        row.price = row.trend_foil if row.foil else row.trend
+        row.week_price = row.week_trend_foil if row.foil else row.week_trend
+        row.total = row.price * row.quantity if row.price is not None else None
+    rows.sort(key=lambda r: (r.total is None, -(r.total or 0), str(r.card)))
+    return rows
+
+
+def collection_stats(rows):
+    priced = [r for r in rows if r.total is not None]
+    compared = [r for r in priced if r.week_price is not None]
+    return {
+        'copies': sum(r.quantity for r in rows),
+        'printings': len(rows),
+        'value': sum((r.total for r in priced), Decimal('0.00')),
+        'unpriced': len(rows) - len(priced),
+        'week': sum((r.quantity * (r.price - r.week_price) for r in compared), Decimal('0.00')) if compared else None,
+    }
+
+
+def describe(owned, quantity):
+    card = owned.card
+    details = [card.expansion_name or 'Unknown expansion'] + (['foil'] if owned.foil else []) + [owned.get_condition_display()]
+    return f'{quantity} × {card} ({", ".join(details)})'
+
+
+@vary_on_headers('HX-Request')
+def my_cards(request):
+    """The user's cards: a search to add a printing, and the collection with its value."""
+    q = (request.POST if request.method == 'POST' else request.GET).get('q', '').strip()
+    form = OwnedCardForm()
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'add':
+            form = OwnedCardForm(request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                with transaction.atomic():
+                    owned, merged = OwnedCard.add(
+                        request.user, data['card'], data['foil'], data['condition'], data['quantity'], data['price_paid'],
+                    )
+                prefix = 'Added to the copies you had: ' if merged else 'Added '
+                messages.success(request, prefix + describe(owned, data['quantity']) + '.')
+                return redirect(reverse('my_cards') + ('?' + urlencode({'q': q}) if q else ''))
+        elif action in ('inc', 'dec', 'remove'):
+            owned = get_object_or_404(OwnedCard, pk=request.POST.get('id'), user=request.user)
+            if action == 'remove':
+                owned.delete()
+                messages.success(request, f'Removed {describe(owned, owned.quantity)}.')
+            else:
+                owned.quantity = max(1, owned.quantity + (1 if action == 'inc' else -1))
+                owned.save(update_fields=['quantity'])
+            return redirect('my_cards')
+    context = {
+        'q': q,
+        'printings': search_cards(q) if len(q) >= 2 else [],
+        'form': form,
+        'selected': str(form['card'].value() or ''),
+    }
+    if is_htmx_swap(request):
+        return render(request, 'prices/my_cards.html#printings', context)
+    rows = owned_rows(request.user)
+    return render(request, 'prices/my_cards.html', {
+        **context,
+        'rows': rows,
+        'stats': collection_stats(rows),
     })
