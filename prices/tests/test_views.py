@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from prices.models import Card, Expansion, PriceSnapshot, RankingPreferences, RisingCard
+from prices.models import Card, Expansion, ImportRun, PriceSnapshot, RankingPreferences, RisingCard
 
 pytestmark = pytest.mark.django_db
 
@@ -11,7 +11,7 @@ AS_OF = date(2026, 10, 19)
 
 
 def test_pages_require_login(client):
-    for url in ["/", "/search/", "/cards/1/"]:
+    for url in ["/", "/search/", "/cards/1/", "/profile/", "/accounts/password/"]:
         r = client.get(url)
         assert r.status_code == 302 and r.url.startswith("/accounts/login/")
 
@@ -160,7 +160,7 @@ def test_card_detail_without_rising_has_no_badge(admin_client):
 
 
 @pytest.mark.parametrize("url", ["/accounts/password_change/", "/accounts/password_reset/", "/accounts/reset/done/"])
-def test_only_login_and_logout_routes_exist(admin_client, url):
+def test_no_password_reset_routes(admin_client, url):
     assert admin_client.get(url).status_code == 404
 
 
@@ -196,13 +196,19 @@ def test_card_badge_respects_user_thresholds(admin_client, admin_user, rising_ro
     assert admin_client.get("/cards/2/").context["rising"] is None
 
 
-def test_settings_page_saves_preferences(admin_client, admin_user):
-    assert admin_client.get("/settings/").status_code == 200
-    r = admin_client.post("/settings/", {
+def test_settings_page_redirects_to_profile(admin_client):
+    r = admin_client.get("/settings/")
+    assert r.status_code == 302 and r.url == "/profile/"
+
+
+def test_profile_saves_preferences(admin_client, admin_user):
+    assert admin_client.get("/profile/").status_code == 200
+    r = admin_client.post("/profile/", {
+        "form": "preferences",
         "min_price": "10", "min_gain": "25", "min_r2": "0.8", "min_coverage": "90",
         "min_rising_steps": "3", "max_jump_share": "30", "window_days": "56", "foil": "on",
     })
-    assert r.status_code == 302 and r.url == "/settings/"
+    assert r.status_code == 302 and r.url == "/profile/"
     prefs = RankingPreferences.for_user(admin_user)
     assert (prefs.min_price, prefs.min_gain, prefs.min_r2, prefs.min_coverage) == (Decimal("10"), 0.25, 0.8, 0.9)
     assert (prefs.min_rising_steps, prefs.max_jump_share, prefs.window_days, prefs.foil) == (3, 0.3, 56, True)
@@ -212,20 +218,85 @@ def test_settings_page_saves_preferences(admin_client, admin_user):
     ("min_price", "0.5"), ("min_gain", "-1"), ("min_r2", "1.5"), ("min_coverage", "120"),
     ("min_rising_steps", "4"), ("max_jump_share", "0"), ("window_days", "30"),
 ])
-def test_settings_page_rejects_invalid_values(admin_client, admin_user, field, value):
-    data = {"min_price": "5", "min_gain": "15", "min_r2": "0", "min_coverage": "80",
+def test_profile_rejects_invalid_preferences(admin_client, admin_user, field, value):
+    data = {"form": "preferences", "min_price": "5", "min_gain": "15", "min_r2": "0", "min_coverage": "80",
             "min_rising_steps": "2", "max_jump_share": "50", "window_days": "28", field: value}
-    r = admin_client.post("/settings/", data)
-    assert r.status_code == 200 and r.context["form"].errors.get(field)
+    r = admin_client.post("/profile/", data)
+    assert r.status_code == 200 and r.context["prefs_form"].errors.get(field)
+    assert not r.context["account_form"].is_bound
     assert RankingPreferences.for_user(admin_user).min_gain == 0.15
 
 
-def test_settings_reset_restores_defaults(admin_client, admin_user):
+def test_profile_reset_restores_defaults(admin_client, admin_user):
     set_prefs(admin_user, min_gain=0.9, foil=True)
-    r = admin_client.post("/settings/", {"reset": "1"})
-    assert r.status_code == 302
+    r = admin_client.post("/profile/", {"form": "reset"})
+    assert r.status_code == 302 and r.url == "/profile/"
     prefs = RankingPreferences.for_user(admin_user)
     assert (prefs.min_gain, prefs.foil) == (0.15, False)
+
+
+def test_profile_shows_account(admin_client, admin_user):
+    content = admin_client.get("/profile/").content.decode()
+    assert "@admin" in content and 'href="/admin/"' in content and 'href="/accounts/password/"' in content
+
+
+def test_profile_shows_last_import(admin_client):
+    assert "No import has run yet." in admin_client.get("/profile/").content.decode()
+    ImportRun.objects.create(date=AS_OF, status=ImportRun.STATUS_OK, cards=123456)
+    content = admin_client.get("/profile/").content.decode()
+    assert "2026-10-19" in content and "123,456" in content
+
+
+def test_profile_hides_admin_link_from_non_staff(client, django_user_model):
+    client.force_login(django_user_model.objects.create_user("trader", password="pw-123456789"))
+    content = client.get("/profile/").content.decode()
+    assert "@trader" in content and 'href="/admin/"' not in content
+
+
+def test_profile_updates_account(admin_client, admin_user):
+    r = admin_client.post("/profile/", {
+        "form": "account", "username": "hacked", "first_name": "Ada", "last_name": "Lovelace",
+        "email": "ada@example.com",
+    })
+    assert r.status_code == 302 and r.url == "/profile/"
+    admin_user.refresh_from_db()
+    assert (admin_user.username, admin_user.first_name, admin_user.last_name, admin_user.email) == (
+        "admin", "Ada", "Lovelace", "ada@example.com")
+    assert "Account updated." in admin_client.get("/profile/").content.decode()
+
+
+def test_profile_rejects_invalid_email(admin_client, admin_user):
+    r = admin_client.post("/profile/", {"form": "account", "first_name": "Ada", "last_name": "", "email": "nope"})
+    assert r.status_code == 200 and r.context["account_form"].errors.get("email")
+    assert not r.context["prefs_form"].is_bound
+    admin_user.refresh_from_db()
+    assert admin_user.first_name == ""
+
+
+def test_password_change_keeps_user_logged_in(client, django_user_model):
+    user = django_user_model.objects.create_user("trader", password="pw-123456789")
+    client.force_login(user)
+    r = client.get("/accounts/password/")
+    assert r.status_code == 200 and "theme/password_change.html" in [t.name for t in r.templates]
+    assert "Django administration" not in r.content.decode()
+    r = client.post("/accounts/password/", {
+        "old_password": "pw-123456789", "new_password1": "a-New-pass-2026", "new_password2": "a-New-pass-2026",
+    })
+    assert r.status_code == 302 and r.url == "/profile/"
+    user.refresh_from_db()
+    assert user.check_password("a-New-pass-2026")
+    assert "Password changed." in client.get("/profile/").content.decode()
+
+
+def test_password_change_rejects_wrong_old_password(client, django_user_model):
+    user = django_user_model.objects.create_user("trader", password="pw-123456789")
+    client.force_login(user)
+    r = client.post("/accounts/password/", {
+        "old_password": "wrong", "new_password1": "a-New-pass-2026", "new_password2": "a-New-pass-2026",
+    })
+    assert r.status_code == 200 and r.context["form"].errors.get("old_password")
+    user.refresh_from_db()
+    assert user.check_password("pw-123456789")
 
 
 def test_preferences_are_per_user(client, admin_client, admin_user, django_user_model, rising_rows):

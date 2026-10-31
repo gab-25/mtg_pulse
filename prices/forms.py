@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django import forms
 from django.conf import settings
+from django.contrib.auth import get_user_model
 
 from .models import RankingPreferences
 
@@ -54,3 +55,11 @@ class PreferencesForm(forms.ModelForm):
             if data.get(field) is not None:
                 data[field] = data[field] / 100
         return data
+
+
+class AccountForm(forms.ModelForm):
+    """The fields a user may change on their own account; the username stays with the administrator."""
+
+    class Meta:
+        model = get_user_model()
+        fields = ['first_name', 'last_name', 'email']

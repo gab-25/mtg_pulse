@@ -7,8 +7,8 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.vary import vary_on_headers
 
-from .forms import PreferencesForm
-from .models import Card, PriceSnapshot, RankingPreferences, RisingCard
+from .forms import AccountForm, PreferencesForm
+from .models import Card, ImportRun, PriceSnapshot, RankingPreferences, RisingCard
 
 SERIES_FIELDS = ['trend', 'low', 'avg30', 'trend_foil', 'low_foil', 'avg30_foil']
 MAX_RISING_ROWS = 200
@@ -152,15 +152,26 @@ def recent_changes(card):
     return rows[:RECENT_DAYS]
 
 
-def preferences(request):
+def profile(request):
+    """Account details and ranking thresholds; each form posts its own `form` name."""
     prefs = RankingPreferences.for_user(request.user)
-    if request.method == 'POST' and 'reset' in request.POST:
+    posted = request.POST.get('form') if request.method == 'POST' else None
+    if posted == 'reset':
         prefs.delete()
-        messages.success(request, 'Thresholds reset to the defaults.')
-        return redirect('preferences')
-    form = PreferencesForm(request.POST or None, instance=prefs)
-    if request.method == 'POST' and form.is_valid():
-        form.save()
-        messages.success(request, 'Thresholds saved.')
-        return redirect('preferences')
-    return render(request, 'prices/preferences.html', {'form': form})
+        messages.success(request, 'Thresholds reset to the defaults.', extra_tags='preferences')
+        return redirect('profile')
+    account_form = AccountForm(request.POST if posted == 'account' else None, instance=request.user)
+    prefs_form = PreferencesForm(request.POST if posted == 'preferences' else None, instance=prefs)
+    if posted == 'account' and account_form.is_valid():
+        account_form.save()
+        messages.success(request, 'Account updated.', extra_tags='account')
+        return redirect('profile')
+    if posted == 'preferences' and prefs_form.is_valid():
+        prefs_form.save()
+        messages.success(request, 'Thresholds saved.', extra_tags='preferences')
+        return redirect('profile')
+    return render(request, 'prices/profile.html', {
+        'account_form': account_form,
+        'prefs_form': prefs_form,
+        'last_import': ImportRun.objects.order_by('-started_at').first(),
+    })
