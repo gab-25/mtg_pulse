@@ -168,3 +168,47 @@ class RankingPreferences(models.Model):
             rising_steps__gte=self.min_rising_steps,
             jump_share__lte=self.max_jump_share,
         )
+
+
+class OwnedCard(models.Model):
+    """Copies of one printing a user owns, per finish and condition."""
+
+    CONDITIONS = [
+        ('MT', 'Mint'), ('NM', 'Near Mint'), ('EX', 'Excellent'), ('GD', 'Good'),
+        ('LP', 'Light Played'), ('PL', 'Played'), ('PO', 'Poor'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='owned_cards')
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name='owners')
+    foil = models.BooleanField(default=False)
+    condition = models.CharField(max_length=2, choices=CONDITIONS, default='NM')
+    quantity = models.PositiveIntegerField(default=1)
+    # Average price paid per copy, when the user gave one.
+    price_paid = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'card', 'foil', 'condition'], name='owned_card_unique'),
+        ]
+
+    def __str__(self):
+        return f'{self.quantity} × {self.card}'
+
+    @classmethod
+    def add(cls, user, card, foil, condition, quantity, price_paid=None):
+        """Add copies, merging with the same printing, finish and condition; returns (row, merged)."""
+        owned, created = cls.objects.select_for_update().get_or_create(
+            user=user, card=card, foil=foil, condition=condition,
+            defaults={'quantity': quantity, 'price_paid': price_paid},
+        )
+        if created:
+            return owned, False
+        if price_paid is not None and owned.price_paid is not None:
+            total = owned.price_paid * owned.quantity + price_paid * quantity
+            owned.price_paid = (total / (owned.quantity + quantity)).quantize(Decimal('0.01'))
+        elif price_paid is not None:
+            owned.price_paid = price_paid
+        owned.quantity += quantity
+        owned.save(update_fields=['quantity', 'price_paid'])
+        return owned, True

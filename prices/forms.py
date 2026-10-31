@@ -4,7 +4,7 @@ from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
 
-from .models import RankingPreferences
+from .models import Card, OwnedCard, RankingPreferences
 
 # Fractions stored in the model, shown to the user as percentages.
 PERCENT_FIELDS = ['min_gain', 'min_coverage', 'max_jump_share']
@@ -63,3 +63,26 @@ class AccountForm(forms.ModelForm):
     class Meta:
         model = get_user_model()
         fields = ['first_name', 'last_name', 'email']
+
+
+class CommaDecimalField(forms.DecimalField):
+    """Accepts 1,50 as well as 1.50."""
+
+    def to_python(self, value):
+        return super().to_python(value.replace(',', '.') if isinstance(value, str) else value)
+
+
+class OwnedCardForm(forms.Form):
+    """Copies of one printing to add to the user's cards."""
+
+    card = forms.ModelChoiceField(
+        queryset=Card.objects.all(), error_messages={'required': 'Pick a printing.', 'invalid_choice': 'Pick a printing.'},
+    )
+    quantity = forms.IntegerField(label='Copies', min_value=1, max_value=9999, initial=1)
+    foil = forms.TypedChoiceField(
+        label='Finish', choices=[('0', 'Normal'), ('1', 'Foil')], coerce=lambda v: v == '1', initial='0',
+    )
+    condition = forms.ChoiceField(label='Condition', choices=OwnedCard.CONDITIONS, initial='NM')
+    price_paid = CommaDecimalField(
+        label='Paid each (€, optional)', required=False, min_value=0, max_digits=10, decimal_places=2,
+    )
