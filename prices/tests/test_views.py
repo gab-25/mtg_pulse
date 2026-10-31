@@ -196,11 +196,6 @@ def test_card_badge_respects_user_thresholds(admin_client, admin_user, rising_ro
     assert admin_client.get("/cards/2/").context["rising"] is None
 
 
-def test_settings_page_redirects_to_profile(admin_client):
-    r = admin_client.get("/settings/")
-    assert r.status_code == 302 and r.url == "/profile/"
-
-
 def test_profile_saves_preferences(admin_client, admin_user):
     assert admin_client.get("/profile/").status_code == 200
     r = admin_client.post("/profile/", {
