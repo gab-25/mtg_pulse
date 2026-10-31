@@ -13,6 +13,9 @@ whose price is rising steadily.
 - **My cards**: each user records the printings they own (copies, normal or foil, condition,
   price paid) and sees the collection valued at the latest trend price, with the change over the
   last 7 days.
+- **Email alerts** (opt-in on the Profile page): after the nightly import, an email when a card
+  the user owns starts rising — passes their thresholds over their default window, in the finish
+  they own. Nothing is sent on days when no owned card starts rising.
 
 ## Running locally
 
@@ -48,8 +51,12 @@ publishes the guide (~02:40).
 - After importing it recomputes the rising measures, refreshes expansion names (MTGJSON)
   and card images plus set names (Scryfall's daily bulk file, ~80 MB). Those two refreshes
   are best-effort: a failure is logged and never fails the import.
+- Finally it sends the email alerts, also best-effort.
 
-Other commands: `compute_rising [--date YYYY-MM-DD]`.
+Other commands: `compute_rising [--date YYYY-MM-DD]`, `send_rising_alerts [--date YYYY-MM-DD]`
+(default: the latest rising measures). Alerts are safe to rerun: each user gets at most one email
+per day, and a user whose email failed is retried. Every user and day is logged in `RisingAlert`
+(visible in `/admin/`); the command exits non-zero if any email failed.
 
 Card images are served by Scryfall (linked, not copied); the card page credits them.
 
@@ -62,6 +69,12 @@ Card images are served by Scryfall (linked, not copied); the card page credits t
 | `DEBUG` | `1` for development, default off |
 | `ALLOWED_HOSTS` | comma-separated host names |
 | `CSRF_TRUSTED_ORIGINS` | comma-separated origins, e.g. `https://pulse.example.com` |
+| `SITE_URL` | public base URL for links in emails, e.g. `https://pulse.example.com` |
+| `EMAIL_HOST` | SMTP server, e.g. `smtp-relay.brevo.com`; unset: emails are printed to the console |
+| `EMAIL_PORT` | SMTP port, default `587` |
+| `EMAIL_USE_TLS` | `1` (default) for STARTTLS, `0` to disable |
+| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP login (on Brevo: the SMTP login and an SMTP key) |
+| `DEFAULT_FROM_EMAIL` | sender, e.g. `MTG Pulse <alerts@gabprojects.dev>`; its domain must be verified with the provider (DKIM, SPF, DMARC) |
 
 HTTPS is expected to be terminated by the reverse proxy in front of the app. With `DEBUG=0`
 session cookies are `Secure`.

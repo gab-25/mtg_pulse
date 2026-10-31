@@ -231,3 +231,10 @@ input.readonly { font-family: var(--mono); color: var(--muted); background: var(
 .stepper button:disabled { color: var(--faint); opacity: .5; cursor: default; }
 .icon-button { width: 44px; height: 44px; border: 0; border-radius: 8px; color: var(--faint); }
 .remove-cell { width: 60px; }
+.side-head { display: flex; flex-direction: column; gap: 4px; }
+.side-head .muted { font-size: 14px; overflow-wrap: anywhere; }
+.alert-option { display: flex; align-items: flex-start; gap: 12px; }
+.alert-option input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; padding: 0; accent-color: var(--gold); }
+.alert-option input:disabled + div label { color: var(--faint); }
+.alert-option label { font-weight: 600; }
+.alert-option .help, .alert-option .field-error { margin-top: 2px; }

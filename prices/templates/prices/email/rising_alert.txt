@@ -1,0 +1,21 @@
+{% load theme_tags %}{% autoescape off %}Hi {{ user.first_name|default:user.username }},
+
+{{ new|length }} of your cards started rising on {{ as_of|date:"Y-m-d" }}. Your thresholds: {{ prefs.window_days }} days, trend price ≥ {{ prefs.min_price }} €, gain ≥ +{{ prefs.min_gain|percent }}.
+
+Started rising
+{% for row in new %}
+- {{ row.card.name }} ({{ row.card.expansion_name|default:"unknown set" }} · {% if row.foil %}Foil{% else %}Normal{% endif %} · {{ row.copies }} cop{{ row.copies|pluralize:"y,ies" }})
+  {{ row.price }} € · +{{ row.gain_pct|percent }}{% if row.paid is not None %} · paid {{ row.paid }} €{% endif %}
+  {{ row.url }}
+{% endfor %}{% if still %}
+Still rising
+{% for row in still %}
+- {{ row.card.name }} ({{ row.card.expansion_name|default:"unknown set" }} · {% if row.foil %}Foil{% else %}Normal{% endif %} · {{ row.copies }} cop{{ row.copies|pluralize:"y,ies" }})
+  {{ row.price }} € · +{{ row.gain_pct|percent }}{% if row.paid is not None %} · paid {{ row.paid }} €{% endif %}
+  {{ row.url }}
+{% endfor %}{% endif %}
+My cards: {{ my_cards_url }}
+
+You get this email because you turned on alerts for your cards in MTG Pulse. It is sent only when a card you own starts rising. Prices are Cardmarket trend prices for the finish you own.
+Change your thresholds or turn off these emails: {{ profile_url }}
+{% endautoescape %}

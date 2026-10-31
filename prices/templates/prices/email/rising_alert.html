@@ -1,0 +1,58 @@
+{% load theme_tags %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{ new|length }} of your cards started rising</title>
+</head>
+<body style="margin: 0; padding: 0; background: #ebe6da;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background: #ebe6da;">
+<tr><td align="center" style="padding: 24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background: #ffffff; border: 1px solid #d8d0bf; font-family: 'IBM Plex Sans', Arial, sans-serif; font-size: 15px; line-height: 1.5; color: #1c1a17;">
+  <tr><td style="background: #0c0b0a; padding: 0;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td height="4" style="background: #efe3b8; font-size: 0;">&nbsp;</td>
+      <td height="4" style="background: #3f86d4; font-size: 0;">&nbsp;</td>
+      <td height="4" style="background: #8c7f72; font-size: 0;">&nbsp;</td>
+      <td height="4" style="background: #d2553a; font-size: 0;">&nbsp;</td>
+      <td height="4" style="background: #3e9b5c; font-size: 0;">&nbsp;</td>
+    </tr></table>
+    <div style="padding: 18px 28px; color: #ede6d6; font-family: Cinzel, Georgia, serif; font-weight: 700; font-size: 20px; letter-spacing: .04em;">MTG Pulse</div>
+  </td></tr>
+
+  <tr><td style="padding: 28px 28px 8px;">
+    <p style="margin: 0 0 8px; font-size: 13px; color: #5c5446; text-transform: uppercase; letter-spacing: .08em;">My cards · {{ as_of|date:"Y-m-d" }}</p>
+    <h1 style="margin: 0 0 8px; font-family: Cinzel, Georgia, serif; font-size: 26px; line-height: 1.2; color: #1c1a17;">{{ new|length }} of your cards started rising</h1>
+    <p style="margin: 0; color: #4a4337;">Hi {{ user.first_name|default:user.username }}, these cards from your collection passed your rising thresholds: {{ prefs.window_days }} days, trend price ≥ {{ prefs.min_price }} €, gain ≥ +{{ prefs.min_gain|percent }}.</p>
+  </td></tr>
+
+  <tr><td style="padding: 16px 28px 0;">
+    <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #5c5446; text-transform: uppercase; letter-spacing: .08em;">Started rising</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      {% for row in new %}{% include "prices/email/_rising_row.html" %}{% endfor %}
+    </table>
+  </td></tr>
+
+  {% if still %}
+  <tr><td style="padding: 20px 28px 0;">
+    <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #5c5446; text-transform: uppercase; letter-spacing: .08em;">Your cards still rising</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      {% for row in still %}{% include "prices/email/_rising_row.html" %}{% endfor %}
+    </table>
+  </td></tr>
+  {% endif %}
+
+  <tr><td style="padding: 28px;">
+    <a href="{{ my_cards_url }}" style="display: inline-block; padding: 13px 24px; border-radius: 8px; background: #d4a84b; color: #131210; font-weight: 700; text-decoration: none;">Open My cards</a>
+  </td></tr>
+
+  <tr><td style="padding: 20px 28px 24px; background: #f6f3ec; border-top: 1px solid #e6dfd0; font-size: 13px; color: #5c5446;">
+    <p style="margin: 0 0 6px;">You get this email because you turned on alerts for your cards in MTG Pulse. It is sent only when a card you own starts rising. Prices are Cardmarket trend prices for the finish you own.</p>
+    <p style="margin: 0;"><a href="{{ profile_url }}" style="color: #8a6416;">Change your thresholds or turn off these emails</a> on your profile.</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>

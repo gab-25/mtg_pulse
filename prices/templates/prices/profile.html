@@ -96,6 +96,33 @@
       {% endif %}
     </section>
 
+    <section class="panel side-panel" aria-labelledby="alerts-title">
+      <div class="side-head">
+        <h2 id="alerts-title">Email alerts</h2>
+        {% if user.email %}<p class="muted">Sent to {{ user.email }} after the nightly import.</p>{% endif %}
+      </div>
+      <form method="post" class="account-form" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="form" value="alerts">
+        {% for message in messages %}{% if 'alerts' in message.extra_tags %}<p class="notice" role="status">{{ message }}</p>{% endif %}{% endfor %}
+        {% with field=alerts_form.email_alerts %}
+        <div class="alert-option">
+          <input type="checkbox" name="{{ field.html_name }}" id="{{ field.id_for_label }}"{% if field.value %} checked{% endif %}{% if not user.email %} disabled{% endif %} aria-describedby="alerts-help">
+          <div>
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {% if field.errors %}<p class="field-error">{{ field.errors|join:" " }}</p>{% endif %}
+            {% if user.email %}
+            <p class="help" id="alerts-help">Only cards in <a href="{% url 'my_cards' %}">My cards</a> that pass your thresholds, over your default window, in the finish you own.</p>
+            {% else %}
+            <p class="help" id="alerts-help">Add your email in the Account card first.</p>
+            {% endif %}
+          </div>
+        </div>
+        {% endwith %}
+        {% if user.email %}<div class="side-actions"><button type="submit" class="button">Save</button></div>{% endif %}
+      </form>
+    </section>
+
     <section class="panel side-panel" aria-labelledby="data-title">
       <h2 id="data-title">Price data</h2>
       {% if last_import %}
