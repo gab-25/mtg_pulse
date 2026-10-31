@@ -151,11 +151,32 @@ LOGOUT_REDIRECT_URL = 'login'
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+# SMTP (e.g. Brevo) when EMAIL_HOST is set; otherwise emails are printed to the console.
+if os.environ.get('EMAIL_HOST'):
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.smtp.EmailBackend',
+            'OPTIONS': {
+                'host': os.environ['EMAIL_HOST'],
+                'port': int(os.environ.get('EMAIL_PORT', '587')),
+                'use_tls': os.environ.get('EMAIL_USE_TLS', '1') == '1',
+                'username': os.environ.get('EMAIL_HOST_USER', ''),
+                'password': os.environ.get('EMAIL_HOST_PASSWORD', ''),
+                'timeout': 30,
+            },
+        },
+    }
+else:
+    MAILERS = {
+        'default': {
+            'BACKEND': 'django.core.mail.backends.console.EmailBackend',
+        },
+    }
+
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'MTG Pulse <alerts@localhost>')
+
+# Absolute base for links in emails, which are built outside any request.
+SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000')
 
 
 # Cardmarket public price files

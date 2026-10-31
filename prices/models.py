@@ -142,6 +142,8 @@ class RankingPreferences(models.Model):
     max_jump_share = models.FloatField(default=default_max_jump_share)
     window_days = models.PositiveSmallIntegerField(default=default_window_days)
     foil = models.BooleanField(default=False)
+    # Daily email when a card the user owns starts rising (prices.alerts).
+    email_alerts = models.BooleanField(default=False)
 
     @classmethod
     def for_user(cls, user):
@@ -212,3 +214,22 @@ class OwnedCard(models.Model):
         owned.quantity += quantity
         owned.save(update_fields=['quantity', 'price_paid'])
         return owned, True
+
+
+class RisingAlert(models.Model):
+    """One user's rising-cards email for one day: which owned cards passed, and whether a mail went out."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='rising_alerts')
+    date = models.DateField()
+    # [id_product, foil] of every owned printing that passed the user's thresholds that day.
+    cards = models.JSONField(default=list)
+    # Set when an email was sent; empty when no card started rising.
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'date'], name='rising_alert_unique_per_day'),
+        ]
+
+    def __str__(self):
+        return f'{self.user} · {self.date}'

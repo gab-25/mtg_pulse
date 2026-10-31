@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Card, Expansion, ImportRun, OwnedCard, RisingCard
+from .models import Card, Expansion, ImportRun, OwnedCard, RisingAlert, RisingCard
 
 
 @admin.register(Expansion)
@@ -36,3 +36,10 @@ class OwnedCardAdmin(admin.ModelAdmin):
     list_display = ['user', 'card', 'foil', 'condition', 'quantity', 'price_paid']
     list_filter = ['foil', 'condition']
     raw_id_fields = ['card']
+
+
+@admin.register(RisingAlert)
+class RisingAlertAdmin(admin.ModelAdmin):
+    list_display = ['date', 'user', 'sent_at']
+    list_filter = ['date']
+    readonly_fields = ['user', 'date', 'cards', 'sent_at']

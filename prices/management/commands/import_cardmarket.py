@@ -5,6 +5,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from prices import cardmarket, mtgjson, scryfall
+from prices.alerts import send_rising_alerts
 from prices.models import ImportRun
 
 logger = logging.getLogger(__name__)
@@ -44,3 +45,9 @@ class Command(BaseCommand):
         except Exception:
             # Images and set names are cosmetic too.
             logger.exception('Card sync from Scryfall failed')
+        try:
+            alerts = send_rising_alerts(result.date)
+            self.stdout.write(f'Rising alerts: {alerts.sent} sent, {len(alerts.failed)} failed')
+        except Exception:
+            # The import itself succeeded; rerun send_rising_alerts to retry the emails.
+            logger.exception('Rising alerts failed')

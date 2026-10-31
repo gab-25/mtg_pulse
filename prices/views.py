@@ -10,7 +10,7 @@ from django.urls import reverse
 from django.utils.http import urlencode
 from django.views.decorators.vary import vary_on_headers
 
-from .forms import AccountForm, OwnedCardForm, PreferencesForm
+from .forms import AccountForm, AlertsForm, OwnedCardForm, PreferencesForm
 from .models import Card, ImportRun, OwnedCard, PriceSnapshot, RankingPreferences, RisingCard
 
 SERIES_FIELDS = ['trend', 'low', 'avg30', 'trend_foil', 'low_foil', 'avg30_foil']
@@ -165,14 +165,23 @@ def profile(request):
     prefs = RankingPreferences.for_user(request.user)
     posted = request.POST.get('form') if request.method == 'POST' else None
     if posted == 'reset':
+        email_alerts = prefs.email_alerts
         prefs.delete()
+        # Only the thresholds go back to the defaults: alerts stay as they were.
+        RankingPreferences.objects.create(user=request.user, email_alerts=email_alerts)
         messages.success(request, 'Thresholds reset to the defaults.', extra_tags='preferences')
         return redirect('profile')
     account_form = AccountForm(request.POST if posted == 'account' else None, instance=request.user)
     prefs_form = PreferencesForm(request.POST if posted == 'preferences' else None, instance=prefs)
+    alerts_form = AlertsForm(request.POST if posted == 'alerts' else None, instance=prefs)
     if posted == 'account' and account_form.is_valid():
         account_form.save()
         messages.success(request, 'Account updated.', extra_tags='account')
+        return redirect('profile')
+    if posted == 'alerts' and alerts_form.is_valid():
+        alerts_form.save()
+        state = 'on' if alerts_form.instance.email_alerts else 'off'
+        messages.success(request, f'Email alerts turned {state}.', extra_tags='alerts')
         return redirect('profile')
     if posted == 'preferences' and prefs_form.is_valid():
         prefs_form.save()
@@ -181,6 +190,7 @@ def profile(request):
     return render(request, 'prices/profile.html', {
         'account_form': account_form,
         'prefs_form': prefs_form,
+        'alerts_form': alerts_form,
         'last_import': ImportRun.objects.order_by('-started_at').first(),
     })
 

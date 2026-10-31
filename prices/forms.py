@@ -65,6 +65,20 @@ class AccountForm(forms.ModelForm):
         fields = ['first_name', 'last_name', 'email']
 
 
+class AlertsForm(forms.ModelForm):
+    email_alerts = forms.BooleanField(label='Email me when a card I own starts rising', required=False)
+
+    class Meta:
+        model = RankingPreferences
+        fields = ['email_alerts']
+
+    def clean_email_alerts(self):
+        on = self.cleaned_data['email_alerts']
+        if on and not self.instance.user.email:
+            raise forms.ValidationError('Add your email in the Account card first.')
+        return on
+
+
 class CommaDecimalField(forms.DecimalField):
     """Accepts 1,50 as well as 1.50."""
 

@@ -7,3 +7,5 @@ from .settings import *  # noqa: E402,F403
 
 # Static files are not collected in tests.
 WHITENOISE_AUTOREFRESH = True
+
+SITE_URL = 'http://testserver'
