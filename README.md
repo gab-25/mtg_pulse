@@ -8,7 +8,7 @@ whose price is rising steadily.
 - **Card page** with the card image, price history chart and recent price changes.
 - **Rising cards**: cards whose trend price rises steadily over 14/28/56 days. Each night the
   app measures every card priced ≥ 1 € (gain, steadiness R², days with a price, rising
-  quarters, largest single-day jump); each user picks their own thresholds on the Settings
+  quarters, largest single-day jump); each user picks their own thresholds on their Profile
   page. Defaults (≥ 5 €, +15%, no single-day spikes) live in `RISING` in `mtg_pulse/settings.py`.
 
 ## Running locally
@@ -20,7 +20,8 @@ docker compose run --rm web python manage.py createsuperuser
 ```
 
 Every page requires login; there is no sign-up, accounts are created with `createsuperuser`
-(or in `/admin/`).
+(or in `/admin/`). On the Profile page each user can change their name, email and password; the
+username stays with the administrator, and there is no password reset by email.
 
 ### First data
 

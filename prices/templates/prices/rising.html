@@ -5,7 +5,7 @@
 <div class="page-head">
   <div>
     <h1>Rising cards</h1>
-    <p class="muted thresholds">Gain ≥ {{ prefs.min_gain|percent }} · R² ≥ {{ prefs.min_r2|floatformat:2 }} · ≥ {{ prefs.min_rising_steps }} rising quarters · single-day jump ≤ {{ prefs.max_jump_share|percent }} of the gain · <a href="{% url 'preferences' %}">Change thresholds</a></p>
+    <p class="muted thresholds">Gain ≥ {{ prefs.min_gain|percent }} · R² ≥ {{ prefs.min_r2|floatformat:2 }} · ≥ {{ prefs.min_rising_steps }} rising quarters · single-day jump ≤ {{ prefs.max_jump_share|percent }} of the gain · <a href="{% url 'profile' %}">Change thresholds</a></p>
   </div>
   {% if as_of %}<p class="muted mono">Updated {{ as_of|date:"Y-m-d" }}</p>{% endif %}
 </div>
