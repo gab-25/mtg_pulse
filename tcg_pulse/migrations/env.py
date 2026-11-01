@@ -1,14 +1,19 @@
-"""Alembic environment: migrates the connection handed over by pulse.db.migrate, or DATABASE_URL."""
+"""Alembic environment: migrates the connection handed over by tcg_pulse.db.migrate, or DATABASE_URL."""
 
 import os
 
 from alembic import context
 from sqlalchemy import create_engine
 
-from pulse.db import engine_url
-from pulse.models import Base
+from tcg_pulse.db import engine_url
+from tcg_pulse.models import Base
 
 target_metadata = Base.metadata
+
+
+def include_object(obj, name, type_, reflected, compare_to):
+    """Alembic's own version table is not a model."""
+    return not (type_ == 'table' and name == 'alembic_version')
 
 
 def run(connection):
@@ -16,7 +21,7 @@ def run(connection):
     # later one: otherwise a fresh schema in front of an up-to-date public one would look migrated.
     schema = connection.exec_driver_sql('SELECT current_schema()').scalar()
     context.configure(connection=connection, target_metadata=target_metadata, compare_type=True,
-                      version_table_schema=schema)
+                      version_table_schema=schema, include_object=include_object)
     with context.begin_transaction():
         context.run_migrations()
 

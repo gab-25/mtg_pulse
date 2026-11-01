@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from pulse.db import engine_url, migrate
+from tcg_pulse.db import engine_url, migrate
 
 TEST_DATABASE_URL = os.environ.get('TEST_DATABASE_URL', 'postgresql://tcg_pulse:tcg_pulse@localhost:5432/tcg_pulse')
 

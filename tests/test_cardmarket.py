@@ -4,9 +4,9 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from pulse import cardmarket
-from pulse.cardmarket import guide_date, parse_prices, parse_products
-from pulse.config import BERLIN, game
+from tcg_pulse import cardmarket
+from tcg_pulse.cardmarket import guide_date, parse_prices, parse_products
+from tcg_pulse.config import BERLIN, game
 
 
 def guide(*entries, created='2026-11-01T02:47:00+0100'):

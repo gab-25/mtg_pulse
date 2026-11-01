@@ -9,7 +9,7 @@ Tracks the Cardmarket price of every single card of four games over time and sho
 | One Piece | 18 |
 | Riftbound | 22 |
 
-- **Daily sync** (`python -m pulse sync`): downloads each game's public price guide and singles list
+- **Daily sync** (`python -m tcg_pulse sync`): downloads each game's public price guide and singles list
   (trend, low, averages, normal and foil — Pokémon's "holo" is stored as foil) into a PostgreSQL +
   TimescaleDB hypertable, one row per card per day. History starts from the first sync: Cardmarket
   only publishes today's prices, so a day that is never imported is lost.
@@ -18,7 +18,7 @@ Tracks the Cardmarket price of every single card of four games over time and sho
   dashboard applies the thresholds (defaults: ≥ 5 €, +15 %, no single-day spikes).
 - **Expansion names** are derived from the names of Cardmarket's sealed products ("Origins Booster
   Box" → "Origins"). Wrong or missing names can be fixed by hand in
-  [`pulse/expansion_overrides.json`](pulse/expansion_overrides.json) (`{"pokemon": {"6381": "Name"}}`);
+  [`tcg_pulse/expansion_overrides.json`](tcg_pulse/expansion_overrides.json) (`{"pokemon": {"6381": "Name"}}`);
   an expansion with no name shows its id, e.g. `#5229`.
 - **Grafana** with two dashboards, provisioned from [`grafana/`](grafana/): **Rising** (pick the game,
   window, normal/foil, thresholds) and **Card detail** (search a card, price history). Login only.
@@ -41,8 +41,8 @@ Rising needs a few weeks of history before it lists anything.
 
 ## Database
 
-The tables are SQLAlchemy models in [`pulse/models.py`](pulse/models.py); the schema is managed with
-Alembic migrations in [`pulse/migrations`](pulse/migrations), which the sync applies on every run. After
+The tables are SQLAlchemy models in [`tcg_pulse/models.py`](tcg_pulse/models.py); the schema is managed with
+Alembic migrations in [`tcg_pulse/migrations`](tcg_pulse/migrations), which the sync applies on every run. After
 changing a model, generate a migration and review it (TimescaleDB specifics, such as the `price`
 hypertable, are written by hand in the migrations):
 
@@ -61,7 +61,7 @@ uv run pytest               # TEST_DATABASE_URL defaults to the compose database
 
 ## Daily sync
 
-`python -m pulse sync` is a one-shot command meant to run **once a day** from an external scheduler at
+`python -m tcg_pulse sync` is a one-shot command meant to run **once a day** from an external scheduler at
 about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 
 - Each game is independent: one failing never stops the others.
@@ -73,7 +73,7 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 - Every attempt is logged in the `import_run` table (shown on the Rising dashboard as "Last import").
 - Every downloaded file is kept gzipped under `DATA_DIR/<game>/<date>/` (a few MB a day). To import an
   archived day again, replacing that day's prices (e.g. after fixing an import bug):
-  `python -m pulse reimport --game pokemon --date 2026-11-01`.
+  `python -m tcg_pulse reimport --game pokemon --date 2026-11-01`.
 
 ## Production
 
@@ -82,7 +82,7 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 - Create the read-only role Grafana uses, once:
   `CREATE ROLE grafana_reader LOGIN PASSWORD '...'; GRANT CONNECT ON DATABASE <db> TO grafana_reader;`
   The sync grants it `SELECT` on its tables.
-- Run the image (`ghcr.io/<owner>/tcg-pulse`, default command `python -m pulse sync`) once a day with
+- Run the image (`ghcr.io/<owner>/tcg-pulse`, default command `python -m tcg_pulse sync`) once a day with
   `DATABASE_URL` set and a persistent volume on `/app/data`.
 - Run Grafana with the files in `grafana/provisioning` mounted on `/etc/grafana/provisioning`, the
   dashboards in `grafana/dashboards` on `/var/lib/grafana/dashboards`, and the variables below.

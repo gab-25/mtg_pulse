@@ -1,5 +1,5 @@
-from pulse import expansions
-from pulse.expansions import derive_names, refresh_expansions
+from tcg_pulse import expansions
+from tcg_pulse.expansions import derive_names, refresh_expansions
 from conftest import sql
 
 

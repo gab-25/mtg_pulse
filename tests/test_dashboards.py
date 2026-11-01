@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from pulse.cardmarket import CardRow, PriceRow
-from pulse.store import insert_prices, upsert_cards
+from tcg_pulse.cardmarket import CardRow, PriceRow
+from tcg_pulse.store import insert_prices, upsert_cards
 from conftest import sql
 
 DASHBOARDS = Path(__file__).parent.parent / 'grafana' / 'dashboards'

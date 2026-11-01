@@ -6,9 +6,9 @@ from decimal import Decimal
 import httpx
 import pytest
 
-from pulse import __main__ as cli
-from pulse.config import GAMES, NONSINGLES_URL, PRICE_GUIDE_URL, SINGLES_URL, game
-from pulse.sync import archive, reimport, sync_all
+from tcg_pulse import __main__ as cli
+from tcg_pulse.config import GAMES, NONSINGLES_URL, PRICE_GUIDE_URL, SINGLES_URL, game
+from tcg_pulse.sync import archive, reimport, sync_all
 from conftest import sql
 
 TODAY = date(2026, 11, 1)
@@ -139,7 +139,7 @@ def test_cli_exit_code(monkeypatch):
 
 
 def test_rerun_retries_a_game_whose_rising_failed(session, tmp_path, fake, sleeps, monkeypatch):
-    from pulse import sync
+    from tcg_pulse import sync
     real = sync.compute_rising
 
     def broken(session, game, as_of):

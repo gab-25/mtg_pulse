@@ -1,8 +1,8 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from pulse.cardmarket import CardRow, PriceRow
-from pulse.store import imported, insert_prices, log_run, upsert_cards
+from tcg_pulse.cardmarket import CardRow, PriceRow
+from tcg_pulse.store import imported, insert_prices, log_run, upsert_cards
 from conftest import sql
 
 DAY = date(2026, 11, 1)

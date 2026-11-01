@@ -2,9 +2,9 @@ from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 
 from conftest import sql
-from pulse.config import GAMES, game
-from pulse.db import migrate
-from pulse.models import Base
+from tcg_pulse.config import GAMES, game
+from tcg_pulse.db import migrate
+from tcg_pulse.models import Base
 
 
 def test_schema_creates_tables(session):

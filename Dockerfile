@@ -13,11 +13,11 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY pulse ./pulse
+COPY tcg_pulse ./tcg_pulse
 RUN useradd --create-home --uid 1000 app \
     && mkdir -p /app/data && chown app /app/data
 
 USER app
 VOLUME /app/data
 # One sync of every game, then exit: non-zero when a game is still missing after its retries.
-CMD ["python", "-m", "pulse", "sync"]
+CMD ["python", "-m", "tcg_pulse", "sync"]

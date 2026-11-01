@@ -1,4 +1,4 @@
-"""Command line: `python -m pulse sync` (the daily run) and `python -m pulse reimport`."""
+"""Command line: `python -m tcg_pulse sync` (the daily run) and `python -m tcg_pulse reimport`."""
 
 import argparse
 import logging
@@ -11,7 +11,7 @@ from .sync import reimport, sync_all
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog='pulse')
+    parser = argparse.ArgumentParser(prog='tcg_pulse')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('sync', help="import today's prices for every game, retrying failures")
     again = commands.add_parser('reimport', help='import an archived day again')

@@ -3,10 +3,10 @@ from decimal import Decimal
 
 import pytest
 
-from pulse.cardmarket import CardRow, PriceRow
-from pulse.config import RISING
-from pulse.rising import compute_rising, evaluate, measure, passes
-from pulse.store import insert_prices, upsert_cards
+from tcg_pulse.cardmarket import CardRow, PriceRow
+from tcg_pulse.config import RISING
+from tcg_pulse.rising import compute_rising, evaluate, measure, passes
+from tcg_pulse.store import insert_prices, upsert_cards
 from conftest import sql
 
 AS_OF = date(2026, 10, 19)

@@ -63,7 +63,7 @@ def derive_names(nonsingles):
 
 
 def load_overrides(game):
-    data = json.loads((files('pulse') / 'expansion_overrides.json').read_text())
+    data = json.loads((files('tcg_pulse') / 'expansion_overrides.json').read_text())
     return {int(k): v for k, v in data.get(game, {}).items()}
 
 

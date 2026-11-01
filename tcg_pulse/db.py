@@ -23,7 +23,7 @@ def connect(url):
 
 def alembic_config():
     config = Config()
-    config.set_main_option('script_location', str(files('pulse') / 'migrations'))
+    config.set_main_option('script_location', str(files('tcg_pulse') / 'migrations'))
     return config
 
 
