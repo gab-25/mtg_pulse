@@ -2,7 +2,7 @@
 
 import json
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -51,8 +51,8 @@ def render(query, **variables):
     return re.sub(r'\$\{(\w+)(?::(\w+))?\}|\$(\w+)', var, query)
 
 
-def run_panel(session, dashboard, title, **variables):
-    [query] = [t['rawSql'] for t in panel(dashboard, title)['targets']]
+def run_panel(session, dashboard, title, ref_id='A', **variables):
+    [query] = [t['rawSql'] for t in panel(dashboard, title)['targets'] if t['refId'] == ref_id]
     cur = sql(session, render(query, **variables))
     return list(cur.keys()), cur.fetchall()
 
@@ -108,19 +108,49 @@ def test_rising_table_applies_thresholds(session):
     assert [r['Card'] for r in by_name] == ['Unnamed Set', 'Rising Star']
     assert [r['#'] for r in by_name] == [1, 2]
     assert by_name[0]['Expansion'] == '#777' and by_name[1]['Expansion'] == 'Origins'
-    assert by_name[1]['id_product'] == 1 and by_name[1]['Gain'] == pytest.approx(0.30)
+    assert by_name[1]['id_product'] == '1' and by_name[1]['Gain'] == pytest.approx(0.30)
     _, count = run_panel(session, load('rising.json'), 'Rising now', **RISING_DEFAULTS)
     assert count == [(2,)]
 
 
-def test_rising_sparkline_follows_the_trend(session):
+def trend_points(session, **variables):
+    """{id_product: [(time, price), ...]} from the query that draws the Trend sparklines."""
+    columns, rows = run_panel(session, load('rising.json'), 'Rising cards', ref_id='B', **variables)
+    assert columns == ['time', 'id_product', 'Trend']
+    points = {}
+    for time, id_product, value in rows:
+        points.setdefault(id_product, []).append((time, value))
+    return points
+
+
+def test_rising_sparkline_follows_the_window(session):
     seed_cards(session)
-    for i in range(28):
-        insert_prices(session, 'riftbound', AS_OF - timedelta(days=27 - i), [PriceRow(1, trend=Decimal(10 + i))])
+    for i in range(60):
+        day = AS_OF - timedelta(days=59 - i)
+        insert_prices(session, 'riftbound', day, [PriceRow(1, trend=Decimal(10 + i)), PriceRow(2, trend=Decimal(5))])
+    rising_row(session, 1)
+    rising_row(session, 2, gain=0.10)  # under the min gain: not in the table, so no line either
+    points = trend_points(session, **RISING_DEFAULTS)
+    assert list(points) == ['1']
+    line = points['1']
+    assert len(line) == 28 and [t for t, _ in line] == sorted(t for t, _ in line)
+    assert line[0] == (datetime(2026, 10, 5), Decimal('42.00')) and line[-1] == (datetime(2026, 11, 1), Decimal('69.00'))
+
+
+def test_rising_table_and_sparkline_join_on_the_product(session):
+    seed_cards(session)
+    insert_prices(session, 'riftbound', AS_OF, [PriceRow(1, trend=Decimal(13))])
     rising_row(session, 1)
     columns, rows = run_panel(session, load('rising.json'), 'Rising cards', **RISING_DEFAULTS)
-    spark = dict(zip(columns, rows[0]))['Trend']
-    assert spark[0] == '▁' and spark[-1] == '█' and list(spark) == sorted(spark)
+    assert 'Trend' not in columns and dict(zip(columns, rows[0]))['id_product'] == '1'
+    assert list(trend_points(session, **RISING_DEFAULTS)) == ['1']
+    table = panel(load('rising.json'), 'Rising cards')
+    ids = [t['id'] for t in table['transformations']]
+    assert ids[:2] == ['timeSeriesTable', 'joinByField']
+    assert table['transformations'][1]['options']['byField'] == 'id_product'
+    # Options naming the query (e.g. {'B': {...}}) leave Grafana 13 without the Trend column.
+    assert table['transformations'][0]['options'] == {}
+    assert table['transformations'][1]['options']['mode'] == 'outer'
 
 
 def test_tracked_history_and_last_import(session):
@@ -274,9 +304,14 @@ def test_averages_window_ranks_the_latest_day_without_history(session):
     by_name = [dict(zip(columns, r)) for r in rows]
     assert [r['Card'] for r in by_name] == ['Spiky', 'Rising Star']
     assert by_name[1]['Price'] == Decimal('13.00') and by_name[1]['Gain'] == pytest.approx(0.30)
-    assert by_name[1]['R²'] is None
-    spark = by_name[0]['Trend']
-    assert len(spark) == 4 and spark[0] == '▁' and spark[-1] == '█'
+    # R² of the line through the four averages: 30 days, 7 days, 1 day and trend on the latest day.
+    assert by_name[1]['R²'] == pytest.approx(0.9850, abs=1e-4)
+    assert by_name[0]['R²'] == pytest.approx(0.9151, abs=1e-4)
+    # Cardmarket's averages drawn on the days they cover: 30 days, 7 days, 1 day, trend.
+    line = trend_points(session, **AVERAGES)['4']
+    assert line == [(datetime(2026, 10, 2), Decimal('10.00')), (datetime(2026, 10, 25), Decimal('15.00')),
+                    (datetime(2026, 10, 31), Decimal('20.00')), (datetime(2026, 11, 1), Decimal('20.00'))]
+    assert set(trend_points(session, **AVERAGES)) == {'1', '4'}
     assert run_panel(session, dashboard, 'Rising now', **AVERAGES)[1] == [(2,)]
 
     columns, rows = run_panel(session, dashboard, 'Rising cards', **{**AVERAGES, 'foil': 'true'})
@@ -294,3 +329,7 @@ def test_history_windows_ignore_the_averages(session):
 def test_window_offers_the_averages():
     [window] = [v for v in load('rising.json')['templating']['list'] if v['name'] == 'window']
     assert 'Cardmarket averages : 0' in window['query']
+
+
+def test_card_detail_has_no_dashboard_links():
+    assert load('card-detail.json')['links'] == []

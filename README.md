@@ -18,7 +18,8 @@ Tracks the Cardmarket price of every single card of four games over time and sho
   dashboard applies the thresholds (defaults: ≥ 5 €, +15 %, no single-day spikes). Until the history
   is long enough, the **Cardmarket averages** window ranks the latest day alone: the trend against
   Cardmarket's own 30-day average, with the 1-, 7- and 30-day averages rising in order and gains over
-  300 % left out. It is noisier, since one sale can move those averages.
+  300 % left out. Its R² is that of the line through the four values (30, 7 and 1 day, trend): how
+  evenly the rise is spread. It is noisier, since one sale can move those averages.
 - **Expansion names** are derived from the names of Cardmarket's sealed products ("Origins Booster
   Box" → "Origins"). Wrong or missing names can be fixed by hand in
   [`tcg_pulse/expansion_overrides.json`](tcg_pulse/expansion_overrides.json) (`{"pokemon": {"6381": "Name"}}`);
