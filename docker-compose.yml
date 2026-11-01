@@ -4,10 +4,13 @@ services:
     image: timescale/timescaledb:2.30.2-pg17
     environment:
       POSTGRES_USER: mtg_pulse
-      POSTGRES_PASSWORD: mtg_pulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mtg_pulse}
       POSTGRES_DB: mtg_pulse
+      PULSE_DB_READER_PASSWORD: ${PULSE_DB_READER_PASSWORD:?set PULSE_DB_READER_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Runs only when the volume is created: makes the read-only grafana_reader role.
+      - ./db/init/10-grafana-reader.sh:/docker-entrypoint-initdb.d/10-grafana-reader.sh:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -16,17 +19,42 @@ services:
       timeout: 5s
       retries: 10
 
-  web:
-    build: .
-    env_file: .env
+  grafana:
+    image: grafana/grafana-oss:13.0.2
     environment:
-      DATABASE_URL: postgres://mtg_pulse:mtg_pulse@db:5432/mtg_pulse
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_DISABLE_LOGIN_FORM: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/rising.json
+      PULSE_DB_HOST: db
+      PULSE_DB_NAME: mtg_pulse
+      PULSE_DB_READER_PASSWORD: ${PULSE_DB_READER_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       db:
         condition: service_healthy
     ports:
       # Only reachable from the host: put the HTTPS reverse proxy in front.
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:3000:3000"
+
+  sync:
+    # Runs once on `docker compose up`; run it again with `docker compose run --rm sync`.
+    build: .
+    environment:
+      DATABASE_URL: postgresql://mtg_pulse:${POSTGRES_PASSWORD:-mtg_pulse}@db:5432/mtg_pulse
+    volumes:
+      - syncdata:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
 
 volumes:
   pgdata:
+  grafana-data:
+  syncdata:
