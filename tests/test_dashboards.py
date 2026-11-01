@@ -304,7 +304,9 @@ def test_averages_window_ranks_the_latest_day_without_history(session):
     by_name = [dict(zip(columns, r)) for r in rows]
     assert [r['Card'] for r in by_name] == ['Spiky', 'Rising Star']
     assert by_name[1]['Price'] == Decimal('13.00') and by_name[1]['Gain'] == pytest.approx(0.30)
-    assert by_name[1]['R²'] is None
+    # R² of the line through the four averages: 30 days, 7 days, 1 day and trend on the latest day.
+    assert by_name[1]['R²'] == pytest.approx(0.9850, abs=1e-4)
+    assert by_name[0]['R²'] == pytest.approx(0.9151, abs=1e-4)
     # Cardmarket's averages drawn on the days they cover: 30 days, 7 days, 1 day, trend.
     line = trend_points(session, **AVERAGES)['4']
     assert line == [(datetime(2026, 10, 2), Decimal('10.00')), (datetime(2026, 10, 25), Decimal('15.00')),
