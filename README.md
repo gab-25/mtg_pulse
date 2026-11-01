@@ -31,11 +31,11 @@ docker compose up -d --build  # db, Grafana on http://localhost:3000, and one sy
 docker compose run --rm sync  # sync again
 ```
 
-The first `up` creates the read-only `grafana_reader` role (from `db/init/`, only when the database
-volume is created). On a database volume that already exists — for example one left by the old Django
-version — the role is missing and every Grafana panel fails to connect: create it by hand as described
-under [Production](#production), or recreate the volume (`docker compose down -v` deletes its data).
-Likewise `GRAFANA_ADMIN_PASSWORD` only applies when the Grafana volume is first created.
+Grafana reads the database as `grafana_reader`, a role that can only read. The sync's migrations create
+it with `TCG_PULSE_DB_READER_PASSWORD` when it is missing — also on a database volume that already
+exists — and let it read every table. Changing that password later is done by hand
+(`ALTER ROLE grafana_reader PASSWORD '...'`). `GRAFANA_ADMIN_PASSWORD` only applies when the Grafana
+volume is first created.
 
 Rising needs a few weeks of history before it lists anything.
 
@@ -79,11 +79,12 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 
 - A new, empty PostgreSQL database with the TimescaleDB extension. The sync applies the Alembic
   migrations on every run.
-- Create the read-only role Grafana uses, once:
-  `CREATE ROLE grafana_reader LOGIN PASSWORD '...'; GRANT CONNECT ON DATABASE <db> TO grafana_reader;`
-  The sync grants it `SELECT` on its tables.
+- The read-only `grafana_reader` role: the migrations create it when `TCG_PULSE_DB_READER_PASSWORD` is set
+  and the sync's database user may create roles (`CREATEROLE`). Otherwise create it once by hand,
+  `CREATE ROLE grafana_reader LOGIN PASSWORD '...';`, and run the sync: the migrations only grant it read
+  access then.
 - Run the image (`ghcr.io/<owner>/tcg-pulse`, default command `python -m tcg_pulse sync`) once a day with
-  `DATABASE_URL` set and a persistent volume on `/app/data`.
+  `DATABASE_URL` (and `TCG_PULSE_DB_READER_PASSWORD`, see above) set and a persistent volume on `/app/data`.
 - Run Grafana with the files in `grafana/provisioning` mounted on `/etc/grafana/provisioning`, the
   dashboards in `grafana/dashboards` on `/var/lib/grafana/dashboards`, and the variables below.
   Disable anonymous access and sign-up as `docker-compose.yml` does; HTTPS is terminated by the reverse
@@ -96,6 +97,7 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 | `DATABASE_URL` | sync | PostgreSQL URL; the database needs the TimescaleDB extension |
 | `DATA_DIR` | sync | where downloaded files are archived (`/app/data` in the image) |
 | `POSTGRES_PASSWORD` | compose | password of the `tcg_pulse` database user |
-| `PULSE_DB_HOST`, `PULSE_DB_NAME` | Grafana | database host and name for the datasource |
-| `PULSE_DB_READER_PASSWORD` | Grafana, compose | password of the `grafana_reader` role |
+| `TCG_PULSE_DB_HOST`, `TCG_PULSE_DB_NAME` | Grafana | database host and name for the datasource |
+| `TCG_PULSE_DB_SSLMODE` | Grafana | SSL mode of the datasource connection (default `disable`) |
+| `TCG_PULSE_DB_READER_PASSWORD` | sync, Grafana | password of the `grafana_reader` role; the sync creates the role with it when missing |
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | compose | the Grafana login (`GF_SECURITY_ADMIN_*`) |

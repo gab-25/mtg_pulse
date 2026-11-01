@@ -6,11 +6,8 @@ services:
       POSTGRES_USER: tcg_pulse
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tcg_pulse}
       POSTGRES_DB: tcg_pulse
-      PULSE_DB_READER_PASSWORD: ${PULSE_DB_READER_PASSWORD:?set PULSE_DB_READER_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Runs only when the volume is created: makes the read-only grafana_reader role.
-      - ./db/init/10-grafana-reader.sh:/docker-entrypoint-initdb.d/10-grafana-reader.sh:ro
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
@@ -28,9 +25,9 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_DISABLE_LOGIN_FORM: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/rising.json
-      PULSE_DB_HOST: db
-      PULSE_DB_NAME: tcg_pulse
-      PULSE_DB_READER_PASSWORD: ${PULSE_DB_READER_PASSWORD}
+      TCG_PULSE_DB_HOST: db
+      TCG_PULSE_DB_NAME: tcg_pulse
+      TCG_PULSE_DB_READER_PASSWORD: ${TCG_PULSE_DB_READER_PASSWORD:?set TCG_PULSE_DB_READER_PASSWORD in .env}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
@@ -47,6 +44,8 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql://tcg_pulse:${POSTGRES_PASSWORD:-tcg_pulse}@db:5432/tcg_pulse
+      # The migrations create the read-only grafana_reader role with it, when the role is missing.
+      TCG_PULSE_DB_READER_PASSWORD: ${TCG_PULSE_DB_READER_PASSWORD:?set TCG_PULSE_DB_READER_PASSWORD in .env}
     volumes:
       - syncdata:/app/data
     depends_on:

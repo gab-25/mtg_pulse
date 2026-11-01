@@ -13,6 +13,11 @@ TEST_DATABASE_URL = os.environ.get('TEST_DATABASE_URL', 'postgresql://tcg_pulse:
 @pytest.fixture(scope='session')
 def engine():
     engine = create_engine(engine_url(TEST_DATABASE_URL))
+    # Roles are server-wide: make sure grafana_reader exists so every test schema gets its grants.
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_reader') THEN "
+            "CREATE ROLE grafana_reader LOGIN PASSWORD 'test'; END IF; END $$")
     yield engine
     engine.dispose()
 

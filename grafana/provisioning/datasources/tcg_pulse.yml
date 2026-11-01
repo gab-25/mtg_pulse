@@ -9,14 +9,14 @@ datasources:
   - name: TCG Pulse
     uid: tcg_pulse
     type: grafana-postgresql-datasource
-    url: ${PULSE_DB_HOST}:5432
+    url: ${TCG_PULSE_DB_HOST}:5432
     user: grafana_reader
     isDefault: true
     editable: false
     jsonData:
-      database: ${PULSE_DB_NAME}
-      sslmode: ${PULSE_DB_SSLMODE:-disable}
+      database: ${TCG_PULSE_DB_NAME}
+      sslmode: ${TCG_PULSE_DB_SSLMODE:-disable}
       postgresVersion: 1700
       timescaledb: true
     secureJsonData:
-      password: ${PULSE_DB_READER_PASSWORD}
+      password: ${TCG_PULSE_DB_READER_PASSWORD}

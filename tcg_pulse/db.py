@@ -1,10 +1,10 @@
-"""Engine, sessions, Alembic migrations and the read-only Grafana role's grants."""
+"""Engine, sessions and Alembic migrations."""
 
 from importlib.resources import files
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 
@@ -28,22 +28,9 @@ def alembic_config():
 
 
 def migrate(session):
-    """Bring the schema up to date (idempotent), then let grafana_reader read every table."""
+    """Bring the schema, and the read-only grafana_reader role, up to date (idempotent)."""
     config = alembic_config()
     config.attributes['connection'] = session.connection()
     command.upgrade(config, 'head')
-    grant_reader(session)
     session.commit()
 
-
-def grant_reader(session):
-    session.execute(text("""
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_reader') THEN
-                EXECUTE format('GRANT USAGE ON SCHEMA %I TO grafana_reader', current_schema());
-                EXECUTE format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO grafana_reader', current_schema());
-            END IF;
-        END
-        $$
-    """))
