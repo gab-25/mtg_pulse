@@ -15,7 +15,10 @@ Tracks the Cardmarket price of every single card of four games over time and sho
   only publishes today's prices, so a day that is never imported is lost.
 - **Rising cards**: after each game's import, every card priced ≥ 1 € is measured over 14, 28 and 56 days
   (gain, steadiness R², days with a price, rising quarters, largest single-day jump). The Rising
-  dashboard applies the thresholds (defaults: ≥ 5 €, +15 %, no single-day spikes).
+  dashboard applies the thresholds (defaults: ≥ 5 €, +15 %, no single-day spikes). Until the history
+  is long enough, the **Cardmarket averages** window ranks the latest day alone: the trend against
+  Cardmarket's own 30-day average, with the 1-, 7- and 30-day averages rising in order and gains over
+  300 % left out. It is noisier, since one sale can move those averages.
 - **Expansion names** are derived from the names of Cardmarket's sealed products ("Origins Booster
   Box" → "Origins"). Wrong or missing names can be fixed by hand in
   [`tcg_pulse/expansion_overrides.json`](tcg_pulse/expansion_overrides.json) (`{"pokemon": {"6381": "Name"}}`);
@@ -37,7 +40,8 @@ exists — and let it read every table. Changing that password later is done by 
 (`ALTER ROLE grafana_reader PASSWORD '...'`). `GRAFANA_ADMIN_PASSWORD` only applies when the Grafana
 volume is first created.
 
-Rising needs a few weeks of history before it lists anything.
+Rising's 14/28/56-day windows need a few weeks of history before they list anything; the Cardmarket
+averages window works from the first sync.
 
 ## Database
 

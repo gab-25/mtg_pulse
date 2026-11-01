@@ -90,7 +90,8 @@ def test_queries_run_on_empty_db(session, name):
 def test_rising_empty_message():
     table = panel(load('rising.json'), 'Rising cards')
     assert table['fieldConfig']['defaults']['noValue'] == \
-        'No rising cards yet: the ranking needs a few weeks of price history.'
+        'No rising cards yet: the ranking needs a few weeks of price history. ' \
+        'Until then, pick the Cardmarket averages window.'
 
 
 def test_rising_table_applies_thresholds(session):
@@ -241,3 +242,55 @@ def test_changes_use_the_last_price_on_or_before(session):
     dashboard = load('card-detail.json')
     assert float(run_panel(session, dashboard, 'Change 7 days', **variables)[1][0][0]) == pytest.approx(0.2)
     assert run_panel(session, dashboard, 'Change 30 days', **variables)[1] in ([], [(None,)])
+
+
+AVERAGES = {**RISING_DEFAULTS, 'window': '0'}
+
+
+def averages_row(id_product, trend, avg1, avg7, avg30, foil=None):
+    """A price row with the normal averages and, when given as (trend, avg1, avg7, avg30), the foil ones."""
+    values = {'trend': trend, 'avg1': avg1, 'avg7': avg7, 'avg30': avg30}
+    if foil:
+        values |= {f'{k}_foil': v for k, v in zip(('trend', 'avg1', 'avg7', 'avg30'), foil)}
+    return PriceRow(id_product, **{k: Decimal(v) for k, v in values.items()})
+
+
+def test_averages_window_ranks_the_latest_day_without_history(session):
+    seed_cards(session)
+    upsert_cards(session, 'riftbound', [CardRow(6, 'Falling', 6286, None, None), CardRow(7, 'One Sale', 6286, None, None)])
+    insert_prices(session, 'riftbound', AS_OF - timedelta(days=1), [averages_row(2, '50', '50', '40', '10')])
+    insert_prices(session, 'riftbound', AS_OF, [
+        averages_row(1, '13', '13', '12', '10', foil=('30', '30', '20', '10')),  # +30 %, consistent: listed
+        averages_row(2, '11', '11', '11', '10'),     # +10 %: below min gain (yesterday's spike is ignored)
+        averages_row(3, '4', '4', '3.5', '3'),       # below min price
+        averages_row(4, '20', '20', '15', '10'),     # +100 %: listed, ranked first
+        averages_row(5, '13', '11', '12', '10'),     # last day below the week: not consistent
+        averages_row(6, '13', '9', '9', '10'),       # week below the month
+        averages_row(7, '50', '200', '20', '10'),    # +400 %: one odd sale, dropped
+    ])
+    rising_row(session, 5, gain=0.9)  # measures from history are not shown in this mode
+    dashboard = load('rising.json')
+    columns, rows = run_panel(session, dashboard, 'Rising cards', **AVERAGES)
+    by_name = [dict(zip(columns, r)) for r in rows]
+    assert [r['Card'] for r in by_name] == ['Spiky', 'Rising Star']
+    assert by_name[1]['Price'] == Decimal('13.00') and by_name[1]['Gain'] == pytest.approx(0.30)
+    assert by_name[1]['R²'] is None
+    spark = by_name[0]['Trend']
+    assert len(spark) == 4 and spark[0] == '▁' and spark[-1] == '█'
+    assert run_panel(session, dashboard, 'Rising now', **AVERAGES)[1] == [(2,)]
+
+    columns, rows = run_panel(session, dashboard, 'Rising cards', **{**AVERAGES, 'foil': 'true'})
+    assert [dict(zip(columns, r))['Gain'] for r in rows] == [pytest.approx(2.0)]
+
+
+def test_history_windows_ignore_the_averages(session):
+    seed_cards(session)
+    insert_prices(session, 'riftbound', AS_OF, [averages_row(1, '20', '20', '15', '10')])
+    dashboard = load('rising.json')
+    assert run_panel(session, dashboard, 'Rising cards', **RISING_DEFAULTS)[1] == []
+    assert run_panel(session, dashboard, 'Rising now', **RISING_DEFAULTS)[1] == [(0,)]
+
+
+def test_window_offers_the_averages():
+    [window] = [v for v in load('rising.json')['templating']['list'] if v['name'] == 'window']
+    assert 'Cardmarket averages : 0' in window['query']
