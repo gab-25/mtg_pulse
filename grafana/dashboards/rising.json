@@ -1,0 +1,480 @@
+{
+  "uid": "rising",
+  "title": "Rising",
+  "editable": false,
+  "schemaVersion": 41,
+  "version": 1,
+  "tags": [
+    "pulse"
+  ],
+  "timezone": "browser",
+  "refresh": "",
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-28d",
+    "to": "now"
+  },
+  "links": [],
+  "templating": {
+    "list": [
+      {
+        "name": "game",
+        "label": "Game",
+        "type": "custom",
+        "query": "Magic: The Gathering : magic,Pokémon : pokemon,One Piece : onepiece,Riftbound : riftbound",
+        "current": {
+          "text": "Magic: The Gathering",
+          "value": "magic"
+        },
+        "options": [],
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "window",
+        "label": "Window",
+        "type": "custom",
+        "query": "14 days : 14,28 days : 28,56 days : 56",
+        "current": {
+          "text": "28 days",
+          "value": "28"
+        },
+        "options": [],
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "foil",
+        "label": "Version",
+        "type": "custom",
+        "query": "Normal : false,Foil : true",
+        "current": {
+          "text": "Normal",
+          "value": "false"
+        },
+        "options": [],
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "min_price",
+        "label": "Min price €",
+        "type": "textbox",
+        "query": "5",
+        "current": {
+          "text": "5",
+          "value": "5"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "5",
+            "value": "5"
+          }
+        ]
+      },
+      {
+        "name": "min_gain",
+        "label": "Min gain %",
+        "type": "textbox",
+        "query": "15",
+        "current": {
+          "text": "15",
+          "value": "15"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "15",
+            "value": "15"
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Rising now",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Rising now\"\nFROM rising r\nWHERE r.game = '$game' AND r.window_days = $window AND r.foil = $foil\n  AND r.price >= $min_price AND r.gain_pct >= $min_gain / 100.0\n  AND r.r2 >= 0.0 AND r.coverage >= 0.8 AND r.rising_steps >= 2 AND r.jump_share <= 0.5"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Cards tracked daily",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Cards tracked daily\"\nFROM price\nWHERE game = '$game' AND day = (SELECT max(day) FROM price WHERE game = '$game')"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "History since",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT coalesce(to_char(min(day), 'YYYY-MM-DD'), '—') AS \"History since\"\nFROM price\nWHERE game = '$game'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Last import",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT coalesce(\n  (SELECT to_char(finished_at AT TIME ZONE 'Europe/Rome', 'YYYY-MM-DD HH24:MI') || ' · ' || status\n   FROM import_run WHERE game = '$game' ORDER BY id DESC LIMIT 1), 'never') AS \"Last import\""
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Rising cards",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "pulse"
+      },
+      "gridPos": {
+        "h": 20,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  row_number() OVER (ORDER BY r.gain_pct DESC, c.name) AS \"#\",\n  c.name AS \"Card\",\n  coalesce(e.name, '#' || c.id_expansion) AS \"Expansion\",\n  r.price AS \"Price\",\n  r.gain_pct AS \"Gain\",\n  r.r2 AS \"R²\",\n  h.spark AS \"Trend\",\n  r.id_product\nFROM rising r\nJOIN card c ON c.game = r.game AND c.id_product = r.id_product\nLEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\nLEFT JOIN LATERAL (\n  SELECT string_agg(ch, '' ORDER BY b) AS spark\n  FROM (\n    SELECT b, substr('▁▂▃▄▅▆▇█',\n      1 + coalesce(floor(7.999 * (v - min(v) OVER ()) / nullif(max(v) OVER () - min(v) OVER (), 0)), 0)::int, 1) AS ch\n    FROM (\n      SELECT width_bucket(p.day - (r.as_of - r.window_days + 1), 0, r.window_days, 14) AS b,\n             avg(CASE WHEN r.foil THEN p.trend_foil ELSE p.trend END) AS v\n      FROM price p\n      WHERE p.game = r.game AND p.id_product = r.id_product\n        AND p.day > r.as_of - r.window_days AND p.day <= r.as_of\n      GROUP BY 1\n    ) buckets\n    WHERE v IS NOT NULL\n  ) chars\n) h ON true\nWHERE r.game = '$game' AND r.window_days = $window AND r.foil = $foil\n  AND r.price >= $min_price AND r.gain_pct >= $min_gain / 100.0\n  AND r.r2 >= 0.0 AND r.coverage >= 0.8 AND r.rising_steps >= 2 AND r.jump_share <= 0.5\nORDER BY r.gain_pct DESC, c.name\nLIMIT 500"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No rising cards yet: the ranking needs a few weeks of price history.",
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "id_product"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "#"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 60
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Card"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Card detail",
+                    "url": "/d/card-detail/card-detail?var-game=${game}&var-search=${__data.fields.Card:percentencode}&var-card=${__data.fields.id_product}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Price"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Gain"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "R²"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trend"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    }
+  ]
+}
