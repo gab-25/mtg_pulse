@@ -6,7 +6,7 @@ import sys
 from datetime import date, datetime
 
 from .config import BERLIN, GAMES, game, load_settings
-from .db import apply_schema, connect
+from .db import connect, migrate
 from .sync import reimport, sync_all
 
 
@@ -21,13 +21,13 @@ def main(argv=None):
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s', stream=sys.stdout)
     settings = load_settings()
-    conn = connect(settings.database_url)
-    apply_schema(conn)
+    session = connect(settings.database_url)
+    migrate(session)
 
     if args.command == 'sync':
-        ok = sync_all(conn, datetime.now(BERLIN).date(), settings.data_dir)
+        ok = sync_all(session, datetime.now(BERLIN).date(), settings.data_dir)
         sys.exit(0 if ok else 1)
-    result = reimport(conn, game(args.game), args.date, settings.data_dir)
+    result = reimport(session, game(args.game), args.date, settings.data_dir)
     logging.info('%s: reimported %d prices for %s', result.game, result.prices, result.day)
 
 

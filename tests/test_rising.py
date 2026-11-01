@@ -7,6 +7,7 @@ from pulse.cardmarket import CardRow, PriceRow
 from pulse.config import RISING
 from pulse.rising import compute_rising, evaluate, measure, passes
 from pulse.store import insert_prices, upsert_cards
+from conftest import sql
 
 AS_OF = date(2026, 10, 19)
 
@@ -111,33 +112,33 @@ def test_zero_first_price_does_not_crash():
     assert evaluate(s, AS_OF, 28) is None or evaluate(s, AS_OF, 28).gain_pct > 0
 
 
-def seed(conn, game, id_product, series, field='trend'):
-    upsert_cards(conn, game, [CardRow(id_product, f'Card {id_product}', None, None, None)])
+def seed(session, game, id_product, series, field='trend'):
+    upsert_cards(session, game, [CardRow(id_product, f'Card {id_product}', None, None, None)])
     for day, value in series.items():
-        insert_prices(conn, game, day, [PriceRow(id_product, **{field: value})])
+        insert_prices(session, game, day, [PriceRow(id_product, **{field: value})])
 
 
-def test_compute_rising_stores_rows_per_window(conn):
-    seed(conn, 'riftbound', 1, ramp(10, 13, 56))
-    seed(conn, 'riftbound', 2, ramp(0.1, 0.5, 56))  # below the measure floor
-    assert compute_rising(conn, 'riftbound', AS_OF) == 3
-    rows = conn.execute('SELECT id_product, window_days, foil, as_of FROM rising ORDER BY window_days').fetchall()
+def test_compute_rising_stores_rows_per_window(session):
+    seed(session, 'riftbound', 1, ramp(10, 13, 56))
+    seed(session, 'riftbound', 2, ramp(0.1, 0.5, 56))  # below the measure floor
+    assert compute_rising(session, 'riftbound', AS_OF) == 3
+    rows = sql(session, 'SELECT id_product, window_days, foil, as_of FROM rising ORDER BY window_days').fetchall()
     assert rows == [(1, 14, False, AS_OF), (1, 28, False, AS_OF), (1, 56, False, AS_OF)]
-    compute_rising(conn, 'riftbound', AS_OF)
-    assert conn.execute('SELECT count(*) FROM rising').fetchone()[0] == 3
+    compute_rising(session, 'riftbound', AS_OF)
+    assert sql(session, 'SELECT count(*) FROM rising').fetchone()[0] == 3
 
 
-def test_compute_rising_replaces_only_its_game(conn):
-    seed(conn, 'magic', 1, ramp(10, 13, 56))
-    seed(conn, 'riftbound', 2, ramp(10, 13, 56))
-    compute_rising(conn, 'magic', AS_OF)
-    compute_rising(conn, 'riftbound', AS_OF)
-    conn.execute('DELETE FROM price WHERE game = %s', ('riftbound',))
-    compute_rising(conn, 'riftbound', AS_OF)
-    assert conn.execute('SELECT game, count(*) FROM rising GROUP BY game').fetchall() == [('magic', 3)]
+def test_compute_rising_replaces_only_its_game(session):
+    seed(session, 'magic', 1, ramp(10, 13, 56))
+    seed(session, 'riftbound', 2, ramp(10, 13, 56))
+    compute_rising(session, 'magic', AS_OF)
+    compute_rising(session, 'riftbound', AS_OF)
+    sql(session, 'DELETE FROM price WHERE game = %s', ('riftbound',))
+    compute_rising(session, 'riftbound', AS_OF)
+    assert sql(session, 'SELECT game, count(*) FROM rising GROUP BY game').fetchall() == [('magic', 3)]
 
 
-def test_compute_rising_foil(conn):
-    seed(conn, 'pokemon', 1, ramp(10, 13, 56), field='trend_foil')
-    compute_rising(conn, 'pokemon', AS_OF)
-    assert {r[0] for r in conn.execute('SELECT foil FROM rising').fetchall()} == {True}
+def test_compute_rising_foil(session):
+    seed(session, 'pokemon', 1, ramp(10, 13, 56), field='trend_foil')
+    compute_rising(session, 'pokemon', AS_OF)
+    assert {r[0] for r in sql(session, 'SELECT foil FROM rising').fetchall()} == {True}

@@ -39,7 +39,20 @@ Likewise `GRAFANA_ADMIN_PASSWORD` only applies when the Grafana volume is first 
 
 Rising needs a few weeks of history before it lists anything.
 
-Tests need a TimescaleDB database; each test works in its own throwaway schema:
+## Database
+
+The tables are SQLAlchemy models in [`pulse/models.py`](pulse/models.py); the schema is managed with
+Alembic migrations in [`pulse/migrations`](pulse/migrations), which the sync applies on every run. After
+changing a model, generate a migration and review it (TimescaleDB specifics, such as the `price`
+hypertable, are written by hand in the migrations):
+
+```sh
+DATABASE_URL=postgresql://tcg_pulse:tcg_pulse@localhost:5432/tcg_pulse uv run alembic revision --autogenerate -m "Describe the change"
+```
+
+A test fails when the models and the migrations disagree.
+
+Tests need a TimescaleDB database; each test works in its own throwaway schema, migrated with Alembic:
 
 ```sh
 docker compose up -d db
@@ -64,8 +77,8 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 
 ## Production
 
-- A new, empty PostgreSQL database with the TimescaleDB extension. The sync creates its tables on every
-  run (it never drops anything).
+- A new, empty PostgreSQL database with the TimescaleDB extension. The sync applies the Alembic
+  migrations on every run.
 - Create the read-only role Grafana uses, once:
   `CREATE ROLE grafana_reader LOGIN PASSWORD '...'; GRANT CONNECT ON DATABASE <db> TO grafana_reader;`
   The sync grants it `SELECT` on its tables.

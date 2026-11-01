@@ -66,9 +66,6 @@ class PriceRow:
     avg30_foil: Decimal | None = None
 
 
-PRICE_COLUMNS = (*PRICE_KEYS, *(f'{k}_foil' for k in PRICE_KEYS))
-
-
 def to_decimal(value):
     return None if value is None else Decimal(str(value))
 

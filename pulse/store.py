@@ -1,75 +1,85 @@
 """Write cards, daily prices and import runs. Callers own the transaction, except log_run."""
 
-from dataclasses import astuple
+from dataclasses import asdict
+from datetime import datetime, timezone
 
-from .cardmarket import PRICE_COLUMNS
+from sqlalchemy import column, delete, exists, func, select, table, text
+from sqlalchemy.dialects.postgresql import insert
 
-CARD_COLUMNS = ('id_product', 'name', 'id_expansion', 'id_metacard', 'date_added')
-PRICE_ROW_COLUMNS = ('id_product', *PRICE_COLUMNS)
+from .models import Card, Expansion, ImportRun, Price
 
-
-def _copy(conn, table, columns, rows):
-    with conn.cursor() as cur, cur.copy(f'COPY {table} ({", ".join(columns)}) FROM STDIN') as copy:
-        for row in rows:
-            copy.write_row(row)
+BATCH = 5000
 
 
-def upsert_cards(conn, game, cards, update=True):
+def batches(rows):
+    for start in range(0, len(rows), BATCH):
+        yield rows[start:start + BATCH]
+
+
+def upsert_cards(session, game, cards, update=True):
     """Insert the game's cards, updating existing ones unless update is False; unknown expansions get a
     row with no name."""
-    conn.execute(
-        'CREATE TEMP TABLE IF NOT EXISTS card_in (LIKE card INCLUDING DEFAULTS) ON COMMIT DELETE ROWS'
-    )
-    conn.execute('TRUNCATE card_in')
-    _copy(conn, 'card_in', ('game', *CARD_COLUMNS), ((game, *astuple(c)) for c in cards))
-    conn.execute(
-        'INSERT INTO expansion (game, id_expansion) '
-        'SELECT DISTINCT game, id_expansion FROM card_in WHERE id_expansion IS NOT NULL '
-        'ON CONFLICT DO NOTHING'
-    )
-    conn.execute(
-        f'INSERT INTO card (game, {", ".join(CARD_COLUMNS)}) '
-        f'SELECT DISTINCT ON (id_product) game, {", ".join(CARD_COLUMNS)} FROM card_in '
-        + (
-            'ON CONFLICT (game, id_product) DO UPDATE SET name = EXCLUDED.name, id_expansion = EXCLUDED.id_expansion, '
-            'id_metacard = EXCLUDED.id_metacard, date_added = EXCLUDED.date_added'
-            if update
-            else 'ON CONFLICT DO NOTHING'
+    expansions = sorted({c.id_expansion for c in cards if c.id_expansion is not None})
+    if expansions:
+        session.execute(
+            insert(Expansion).on_conflict_do_nothing(),
+            [{'game': game, 'id_expansion': e} for e in expansions],
         )
-    )
+    rows = list({c.id_product: {'game': game, **asdict(c)} for c in cards}.values())
+    stmt = insert(Card)
+    if update:
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[Card.game, Card.id_product],
+            set_={col: stmt.excluded[col] for col in ('name', 'id_expansion', 'id_metacard', 'date_added')},
+        )
+    else:
+        stmt = stmt.on_conflict_do_nothing()
+    for batch in batches(rows):
+        session.execute(stmt, batch)
     return len(cards)
 
 
-def insert_prices(conn, game, day, prices):
-    """Store the day's prices; rows already present are left alone. Returns the rows inserted."""
-    conn.execute(
-        'CREATE TEMP TABLE IF NOT EXISTS price_in (LIKE price INCLUDING DEFAULTS) ON COMMIT DELETE ROWS'
+PRICE_COLUMNS = [c.name for c in Price.__table__.columns]
+price_in = table('price_in', *(column(name) for name in PRICE_COLUMNS))
+
+
+def insert_prices(session, game, day, prices):
+    """Store the day's prices; rows already present are left alone. Returns the rows inserted.
+
+    ~125k rows a day for Magic: they are streamed with COPY into a temporary table on the session's own
+    connection (same transaction), then moved into price with one INSERT ... ON CONFLICT DO NOTHING.
+    Row-by-row inserts through the ORM took 25-30 s instead of a few."""
+    session.execute(text(
+        'CREATE TEMP TABLE IF NOT EXISTS price_in (LIKE price INCLUDING DEFAULTS) ON COMMIT DELETE ROWS'))
+    session.execute(text('TRUNCATE price_in'))
+    driver = session.connection().connection.driver_connection
+    with driver.cursor() as cursor, cursor.copy(f'COPY price_in ({", ".join(PRICE_COLUMNS)}) FROM STDIN') as copy:
+        for p in prices:
+            row = {'game': game, 'day': day, **asdict(p)}
+            copy.write_row([row[name] for name in PRICE_COLUMNS])
+    # Counted with RETURNING inside the statement: the row count of an INSERT ... SELECT into the
+    # hypertable is not reported (-1).
+    inserted = (
+        insert(Price).from_select(PRICE_COLUMNS, select(price_in)).on_conflict_do_nothing()
+        .returning(Price.id_product).cte('inserted')
     )
-    conn.execute('TRUNCATE price_in')
-    columns = ('game', 'day', *PRICE_ROW_COLUMNS)
-    _copy(conn, 'price_in', columns, ((game, day, *astuple(p)) for p in prices))
-    cur = conn.execute(
-        f'INSERT INTO price ({", ".join(columns)}) SELECT {", ".join(columns)} FROM price_in ON CONFLICT DO NOTHING'
-    )
-    return cur.rowcount
+    return session.scalar(select(func.count()).select_from(inserted))
 
 
-def has_prices(conn, game, day):
-    return conn.execute('SELECT EXISTS (SELECT 1 FROM price WHERE game = %s AND day = %s)', (game, day)).fetchone()[0]
+def delete_prices(session, game, day):
+    session.execute(delete(Price).where(Price.game == game, Price.day == day))
 
 
-def imported(conn, game, day):
+def imported(session, game, day):
     """Whether a sync finished the whole import (prices, rising, names) of the game for that day."""
-    return conn.execute(
-        "SELECT EXISTS (SELECT 1 FROM import_run WHERE game = %s AND guide_date = %s AND status = 'ok')", (game, day)
-    ).fetchone()[0]
+    return session.scalar(select(exists().where(
+        ImportRun.game == game, ImportRun.guide_date == day, ImportRun.status == 'ok')))
 
 
-def log_run(conn, game, attempt, started_at, status, guide_date=None, cards=None, prices=None, error=None):
+def log_run(session, game, attempt, started_at, status, guide_date=None, cards=None, prices=None, error=None):
     """Record one attempt and commit it, so it stays even when the import itself was rolled back."""
-    conn.execute(
-        'INSERT INTO import_run (game, attempt, started_at, finished_at, guide_date, status, cards, prices, error) '
-        'VALUES (%s, %s, %s, now(), %s, %s, %s, %s, %s)',
-        (game, attempt, started_at, guide_date, status, cards, prices, error),
-    )
-    conn.commit()
+    session.add(ImportRun(
+        game=game, attempt=attempt, started_at=started_at, finished_at=datetime.now(timezone.utc),
+        guide_date=guide_date, status=status, cards=cards, prices=prices, error=error,
+    ))
+    session.commit()

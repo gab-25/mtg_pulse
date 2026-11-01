@@ -10,6 +10,10 @@ import re
 from collections import Counter, defaultdict
 from importlib.resources import files
 
+from sqlalchemy.dialects.postgresql import insert
+
+from .models import Expansion
+
 # Trailing words that name the product, not the expansion ("Draft Booster Box", "Pre-Rift Event Kit").
 PRODUCT_WORDS = {
     'booster', 'boosters', 'box', 'boxes', 'case', 'display', 'draft', 'set', 'collector', 'play',
@@ -63,14 +67,15 @@ def load_overrides(game):
     return {int(k): v for k, v in data.get(game, {}).items()}
 
 
-def refresh_expansions(conn, game, nonsingles):
+def refresh_expansions(session, game, nonsingles):
     """Store derived names (overrides win) for the game's expansions; returns how many were named."""
     names = derive_names(nonsingles) | load_overrides(game)
-    with conn.cursor() as cur:
-        cur.executemany(
-            'INSERT INTO expansion (game, id_expansion, name) VALUES (%s, %s, %s) '
-            'ON CONFLICT (game, id_expansion) DO UPDATE SET name = EXCLUDED.name',
-            [(game, exp, name) for exp, name in names.items()],
+    if names:
+        stmt = insert(Expansion)
+        session.execute(
+            stmt.on_conflict_do_update(index_elements=[Expansion.game, Expansion.id_expansion],
+                                       set_={'name': stmt.excluded.name}),
+            [{'game': game, 'id_expansion': exp, 'name': name} for exp, name in names.items()],
         )
-    conn.commit()
+    session.commit()
     return len(names)
