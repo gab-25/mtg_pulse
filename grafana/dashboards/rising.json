@@ -34,14 +34,15 @@
         "name": "window",
         "label": "Window",
         "type": "custom",
-        "query": "14 days : 14,28 days : 28,56 days : 56",
+        "query": "14 days : 14,28 days : 28,56 days : 56,Cardmarket averages : 0",
         "current": {
           "text": "28 days",
           "value": "28"
         },
         "options": [],
         "multi": false,
-        "includeAll": false
+        "includeAll": false,
+        "description": "14/28/56 days measure the stored daily history. Cardmarket averages ranks the latest day by its trend against Cardmarket's 30-day average: it works from the first sync, but one sale can move it."
       },
       {
         "name": "foil",
@@ -120,7 +121,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT count(*) AS \"Rising now\"\nFROM rising r\nWHERE r.game = '$game' AND r.window_days = $window AND r.foil = $foil\n  AND r.price >= coalesce(nullif(replace(trim('$min_price'), ',', '.'), '')::numeric, 5)\n  AND r.gain_pct >= coalesce(nullif(replace(trim('$min_gain'), ',', '.'), '')::numeric, 15) / 100.0\n  AND r.r2 >= 0.0 AND r.coverage >= 0.8 AND r.rising_steps >= 2 AND r.jump_share <= 0.5"
+          "rawSql": "WITH r AS (\n  -- Windows of 14/28/56 days: the measures the sync computed from the stored history.\n  SELECT r.id_product, r.price, r.gain_pct, r.r2, r.as_of, r.window_days,\n         NULL::numeric AS avg30, NULL::numeric AS avg7, NULL::numeric AS avg1\n  FROM rising r\n  WHERE r.game = '$game' AND r.window_days = $window AND r.foil = $foil\n    AND r.r2 >= 0.0 AND r.coverage >= 0.8 AND r.rising_steps >= 2 AND r.jump_share <= 0.5\n  UNION ALL\n  -- Cardmarket averages (window 0): the latest day alone, trend against Cardmarket's 30-day average.\n  -- The 1-, 7- and 30-day averages have to rise in order, and gains over 300 % are taken for odd sales.\n  SELECT a.id_product, a.price, (a.price / a.avg30 - 1)::float8, NULL, a.day, 0, a.avg30, a.avg7, a.avg1\n  FROM (\n    SELECT p.id_product, p.day,\n           CASE WHEN $foil THEN p.trend_foil ELSE p.trend END AS price,\n           CASE WHEN $foil THEN p.avg30_foil ELSE p.avg30 END AS avg30,\n           CASE WHEN $foil THEN p.avg7_foil ELSE p.avg7 END AS avg7,\n           CASE WHEN $foil THEN p.avg1_foil ELSE p.avg1 END AS avg1\n    FROM price p\n    WHERE $window = 0 AND p.game = '$game' AND p.day = (SELECT max(day) FROM price WHERE game = '$game')\n  ) a\n  WHERE a.avg30 > 0 AND a.avg7 >= a.avg30 AND a.avg1 >= a.avg7 AND a.price >= a.avg7 AND a.price <= 4 * a.avg30\n)\nSELECT count(*) AS \"Rising now\"\nFROM r\nWHERE r.price >= coalesce(nullif(replace(trim('$min_price'), ',', '.'), '')::numeric, 5)\n  AND r.gain_pct >= coalesce(nullif(replace(trim('$min_gain'), ',', '.'), '')::numeric, 15) / 100.0"
         }
       ],
       "fieldConfig": {
@@ -332,12 +333,12 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  row_number() OVER (ORDER BY r.gain_pct DESC, c.name) AS \"#\",\n  c.name AS \"Card\",\n  coalesce(e.name, '#' || c.id_expansion) AS \"Expansion\",\n  r.price AS \"Price\",\n  r.gain_pct AS \"Gain\",\n  r.r2 AS \"R²\",\n  h.spark AS \"Trend\",\n  r.id_product\nFROM rising r\nJOIN card c ON c.game = r.game AND c.id_product = r.id_product\nLEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\nLEFT JOIN LATERAL (\n  SELECT string_agg(ch, '' ORDER BY b) AS spark\n  FROM (\n    SELECT b, substr('▁▂▃▄▅▆▇█',\n      1 + coalesce(floor(7.999 * (v - min(v) OVER ()) / nullif(max(v) OVER () - min(v) OVER (), 0)), 0)::int, 1) AS ch\n    FROM (\n      SELECT width_bucket(p.day - (r.as_of - r.window_days + 1), 0, r.window_days, 14) AS b,\n             avg(CASE WHEN r.foil THEN p.trend_foil ELSE p.trend END) AS v\n      FROM price p\n      WHERE p.game = r.game AND p.id_product = r.id_product\n        AND p.day > r.as_of - r.window_days AND p.day <= r.as_of\n      GROUP BY 1\n    ) buckets\n    WHERE v IS NOT NULL\n  ) chars\n) h ON true\nWHERE r.game = '$game' AND r.window_days = $window AND r.foil = $foil\n  AND r.price >= coalesce(nullif(replace(trim('$min_price'), ',', '.'), '')::numeric, 5)\n  AND r.gain_pct >= coalesce(nullif(replace(trim('$min_gain'), ',', '.'), '')::numeric, 15) / 100.0\n  AND r.r2 >= 0.0 AND r.coverage >= 0.8 AND r.rising_steps >= 2 AND r.jump_share <= 0.5\nORDER BY r.gain_pct DESC, c.name\nLIMIT 500"
+          "rawSql": "WITH r AS (\n  -- Windows of 14/28/56 days: the measures the sync computed from the stored history.\n  SELECT r.id_product, r.price, r.gain_pct, r.r2, r.as_of, r.window_days,\n         NULL::numeric AS avg30, NULL::numeric AS avg7, NULL::numeric AS avg1\n  FROM rising r\n  WHERE r.game = '$game' AND r.window_days = $window AND r.foil = $foil\n    AND r.r2 >= 0.0 AND r.coverage >= 0.8 AND r.rising_steps >= 2 AND r.jump_share <= 0.5\n  UNION ALL\n  -- Cardmarket averages (window 0): the latest day alone, trend against Cardmarket's 30-day average.\n  -- The 1-, 7- and 30-day averages have to rise in order, and gains over 300 % are taken for odd sales.\n  SELECT a.id_product, a.price, (a.price / a.avg30 - 1)::float8, NULL, a.day, 0, a.avg30, a.avg7, a.avg1\n  FROM (\n    SELECT p.id_product, p.day,\n           CASE WHEN $foil THEN p.trend_foil ELSE p.trend END AS price,\n           CASE WHEN $foil THEN p.avg30_foil ELSE p.avg30 END AS avg30,\n           CASE WHEN $foil THEN p.avg7_foil ELSE p.avg7 END AS avg7,\n           CASE WHEN $foil THEN p.avg1_foil ELSE p.avg1 END AS avg1\n    FROM price p\n    WHERE $window = 0 AND p.game = '$game' AND p.day = (SELECT max(day) FROM price WHERE game = '$game')\n  ) a\n  WHERE a.avg30 > 0 AND a.avg7 >= a.avg30 AND a.avg1 >= a.avg7 AND a.price >= a.avg7 AND a.price <= 4 * a.avg30\n)\nSELECT\n  row_number() OVER (ORDER BY r.gain_pct DESC, c.name) AS \"#\",\n  c.name AS \"Card\",\n  coalesce(e.name, '#' || c.id_expansion) AS \"Expansion\",\n  r.price AS \"Price\",\n  r.gain_pct AS \"Gain\",\n  r.r2 AS \"R²\",\n  h.spark AS \"Trend\",\n  r.id_product\nFROM r\nJOIN card c ON c.game = '$game' AND c.id_product = r.id_product\nLEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\nLEFT JOIN LATERAL (\n  SELECT string_agg(ch, '' ORDER BY b) AS spark\n  FROM (\n    SELECT b, substr('▁▂▃▄▅▆▇█',\n      1 + coalesce(floor(7.999 * (v - min(v) OVER ()) / nullif(max(v) OVER () - min(v) OVER (), 0)), 0)::int, 1) AS ch\n    FROM (\n      SELECT width_bucket(p.day - (r.as_of - r.window_days + 1), 0, r.window_days, 14) AS b,\n             avg(CASE WHEN $foil THEN p.trend_foil ELSE p.trend END) AS v\n      FROM price p\n      WHERE r.window_days > 0 AND p.game = '$game' AND p.id_product = r.id_product\n        AND p.day > r.as_of - r.window_days AND p.day <= r.as_of\n      GROUP BY 1\n      UNION ALL\n      -- Cardmarket averages: 30 days, 7 days, 1 day, trend.\n      SELECT s.b, s.v FROM (VALUES (1, r.avg30), (2, r.avg7), (3, r.avg1), (4, r.price)) s (b, v)\n      WHERE r.window_days = 0\n    ) buckets\n    WHERE v IS NOT NULL\n  ) chars\n) h ON true\nWHERE r.price >= coalesce(nullif(replace(trim('$min_price'), ',', '.'), '')::numeric, 5)\n  AND r.gain_pct >= coalesce(nullif(replace(trim('$min_gain'), ',', '.'), '')::numeric, 15) / 100.0\nORDER BY r.gain_pct DESC, c.name\nLIMIT 500"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "noValue": "No rising cards yet: the ranking needs a few weeks of price history.",
+          "noValue": "No rising cards yet: the ranking needs a few weeks of price history. Until then, pick the Cardmarket averages window.",
           "custom": {
             "align": "auto",
             "cellOptions": {
