@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: Pulse
+  - name: TCG Pulse
     type: file
     disableDeletion: true
     allowUiUpdates: false

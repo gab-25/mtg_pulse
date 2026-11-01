@@ -5,7 +5,7 @@
   "schemaVersion": 41,
   "version": 1,
   "tags": [
-    "pulse"
+    "tcg_pulse"
   ],
   "timezone": "browser",
   "refresh": "",
@@ -65,7 +65,7 @@
         "type": "query",
         "datasource": {
           "type": "grafana-postgresql-datasource",
-          "uid": "pulse"
+          "uid": "tcg_pulse"
         },
         "query": {
           "refId": "card",
@@ -94,7 +94,7 @@
       "title": "Trend",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -107,7 +107,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -150,7 +150,7 @@
       "title": "Low",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -163,7 +163,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -206,7 +206,7 @@
       "title": "Change 7 days",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -219,7 +219,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -274,7 +274,7 @@
       "title": "Change 30 days",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -287,7 +287,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -342,7 +342,7 @@
       "title": "Prices",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 10,
@@ -355,7 +355,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "time_series",
@@ -406,7 +406,7 @@
       "title": "Prices (foil)",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 10,
@@ -419,7 +419,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "time_series",
@@ -470,7 +470,7 @@
       "title": "Latest daily changes",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 10,
@@ -483,7 +483,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",

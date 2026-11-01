@@ -5,7 +5,7 @@
   "schemaVersion": 41,
   "version": 1,
   "tags": [
-    "pulse"
+    "tcg_pulse"
   ],
   "timezone": "browser",
   "refresh": "",
@@ -102,7 +102,7 @@
       "title": "Rising now",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -115,7 +115,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -155,7 +155,7 @@
       "title": "Cards tracked daily",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -168,7 +168,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -208,7 +208,7 @@
       "title": "History since",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -221,7 +221,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -261,7 +261,7 @@
       "title": "Last import",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 4,
@@ -274,7 +274,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
@@ -314,7 +314,7 @@
       "title": "Rising cards",
       "datasource": {
         "type": "grafana-postgresql-datasource",
-        "uid": "pulse"
+        "uid": "tcg_pulse"
       },
       "gridPos": {
         "h": 20,
@@ -327,7 +327,7 @@
           "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
-            "uid": "pulse"
+            "uid": "tcg_pulse"
           },
           "editorMode": "code",
           "format": "table",
