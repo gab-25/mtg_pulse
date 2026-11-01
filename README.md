@@ -1,4 +1,4 @@
-# mtg_pulse
+# TCG Pulse
 
 Tracks the Cardmarket price of every single card of four games over time and shows it in Grafana:
 
@@ -69,7 +69,7 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 - Create the read-only role Grafana uses, once:
   `CREATE ROLE grafana_reader LOGIN PASSWORD '...'; GRANT CONNECT ON DATABASE <db> TO grafana_reader;`
   The sync grants it `SELECT` on its tables.
-- Run the image (`ghcr.io/<owner>/mtg_pulse`, default command `python -m pulse sync`) once a day with
+- Run the image (`ghcr.io/<owner>/tcg-pulse`, default command `python -m pulse sync`) once a day with
   `DATABASE_URL` set and a persistent volume on `/app/data`.
 - Run Grafana with the files in `grafana/provisioning` mounted on `/etc/grafana/provisioning`, the
   dashboards in `grafana/dashboards` on `/var/lib/grafana/dashboards`, and the variables below.
@@ -82,7 +82,7 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 |---|---|---|
 | `DATABASE_URL` | sync | PostgreSQL URL; the database needs the TimescaleDB extension |
 | `DATA_DIR` | sync | where downloaded files are archived (`/app/data` in the image) |
-| `POSTGRES_PASSWORD` | compose | password of the `mtg_pulse` database user |
+| `POSTGRES_PASSWORD` | compose | password of the `tcg_pulse` database user |
 | `PULSE_DB_HOST`, `PULSE_DB_NAME` | Grafana | database host and name for the datasource |
 | `PULSE_DB_READER_PASSWORD` | Grafana, compose | password of the `grafana_reader` role |
 | `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | compose | the Grafana login (`GF_SECURITY_ADMIN_*`) |

@@ -6,7 +6,7 @@ import pytest
 
 from pulse.db import apply_schema
 
-TEST_DATABASE_URL = os.environ.get('TEST_DATABASE_URL', 'postgresql://mtg_pulse:mtg_pulse@localhost:5432/mtg_pulse')
+TEST_DATABASE_URL = os.environ.get('TEST_DATABASE_URL', 'postgresql://tcg_pulse:tcg_pulse@localhost:5432/tcg_pulse')
 
 
 @pytest.fixture
