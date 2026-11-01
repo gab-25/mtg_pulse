@@ -32,7 +32,12 @@ docker compose run --rm sync  # sync again
 ```
 
 The first `up` creates the read-only `grafana_reader` role (from `db/init/`, only when the database
-volume is created). Rising needs a few weeks of history before it lists anything.
+volume is created). On a database volume that already exists — for example one left by the old Django
+version — the role is missing and every Grafana panel fails to connect: create it by hand as described
+under [Production](#production), or recreate the volume (`docker compose down -v` deletes its data).
+Likewise `GRAFANA_ADMIN_PASSWORD` only applies when the Grafana volume is first created.
+
+Rising needs a few weeks of history before it lists anything.
 
 Tests need a TimescaleDB database; each test works in its own throwaway schema:
 
@@ -50,10 +55,12 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 - A game that fails — network error, or a guide still dated yesterday — is retried up to **4 attempts,
   15 minutes apart** (about 45 minutes at most).
 - The command exits non-zero if any game is still missing, so the scheduler can report it.
-- Idempotent: games already imported today are skipped, so a manual rerun only does what is missing.
+- Idempotent: games fully imported today (prices, rising, names) are skipped, so a manual rerun only
+  does what is missing.
 - Every attempt is logged in the `import_run` table (shown on the Rising dashboard as "Last import").
 - Every downloaded file is kept gzipped under `DATA_DIR/<game>/<date>/` (a few MB a day). To import an
-  archived day again: `python -m pulse reimport --game pokemon --date 2026-11-01`.
+  archived day again, replacing that day's prices (e.g. after fixing an import bug):
+  `python -m pulse reimport --game pokemon --date 2026-11-01`.
 
 ## Production
 

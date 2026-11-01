@@ -153,7 +153,7 @@ def card_options(conn, search, game='magic'):
     dashboard = load('card-detail.json')
     [var] = [v for v in dashboard['templating']['list'] if v['name'] == 'card']
     sql = var['query']['rawSql'] if isinstance(var['query'], dict) else var['query']
-    return conn.execute(render(sql, game=game, search=search)).fetchall()
+    return conn.execute(render(sql, game=game, search=search, card='')).fetchall()
 
 
 def test_card_search_handles_quotes_and_percent(conn):
@@ -199,3 +199,44 @@ def test_rising_link_targets_card_detail():
     url = links[0][0]['url']
     assert url.startswith('/d/card-detail/') and 'var-card=${__data.fields.id_product}' in url
     assert 'var-game=${game}' in url and 'var-search=' in url
+
+
+def test_duplicate_card_labels_get_the_product_id(conn):
+    upsert_cards(conn, 'magic', [CardRow(737111, 'Prize Pig', 10, None, None), CardRow(737112, 'Prize Pig', 10, None, None),
+                                 CardRow(5, 'Prize Pig', 11, None, None)])
+    conn.execute("UPDATE expansion SET name = 'Bloomburrow' WHERE id_expansion = 10")
+    conn.execute("UPDATE expansion SET name = 'Promos' WHERE id_expansion = 11")
+    assert sorted(card_options(conn, 'prize pig')) == [
+        ('Prize Pig · Bloomburrow · #737111', 737111),
+        ('Prize Pig · Bloomburrow · #737112', 737112),
+        ('Prize Pig · Promos', 5),
+    ]
+
+
+def test_selected_card_is_an_option_even_beyond_the_search(conn):
+    upsert_cards(conn, 'magic', [CardRow(1, 'Pikachu', None, None, None), CardRow(2, 'Raichu', None, None, None)])
+    dashboard = load('card-detail.json')
+    [var] = [v for v in dashboard['templating']['list'] if v['name'] == 'card']
+    rows = conn.execute(render(var['query']['rawSql'], game='magic', search='pika', card='2')).fetchall()
+    assert {v for _, v in rows} == {1, 2}
+
+
+@pytest.mark.parametrize('min_price,min_gain', [('', ''), ('2,5', '10,5'), (' 5 ', '15')])
+def test_rising_thresholds_tolerate_blank_and_commas(conn, min_price, min_gain):
+    seed_cards(conn)
+    rising_row(conn, 1, gain=0.30)
+    variables = {**RISING_DEFAULTS, 'min_price': min_price, 'min_gain': min_gain}
+    dashboard = load('rising.json')
+    for title, sql in panel_queries(dashboard):
+        conn.execute(render(sql, **variables)).fetchall()
+    assert run_panel(conn, dashboard, 'Rising now', **variables)[1] == [(1,)]
+
+
+def test_changes_use_the_last_price_on_or_before(conn):
+    upsert_cards(conn, 'magic', [CardRow(1, 'Card', None, None, None)])
+    for day, trend in [(AS_OF - timedelta(days=9), '10'), (AS_OF, '12')]:
+        insert_prices(conn, 'magic', day, [PriceRow(1, trend=Decimal(trend))])
+    variables = {'game': 'magic', 'card': '1', 'search': ''}
+    dashboard = load('card-detail.json')
+    assert float(run_panel(conn, dashboard, 'Change 7 days', **variables)[1][0][0]) == pytest.approx(0.2)
+    assert run_panel(conn, dashboard, 'Change 30 days', **variables)[1] in ([], [(None,)])

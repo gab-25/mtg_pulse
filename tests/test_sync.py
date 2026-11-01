@@ -1,13 +1,14 @@
 import gzip
 import json
-from datetime import date
+from datetime import date, timedelta
+from decimal import Decimal
 
 import httpx
 import pytest
 
 from pulse import __main__ as cli
 from pulse.config import GAMES, NONSINGLES_URL, PRICE_GUIDE_URL, SINGLES_URL, game
-from pulse.sync import reimport, sync_all
+from pulse.sync import archive, reimport, sync_all
 
 TODAY = date(2026, 11, 1)
 TODAY_STAMP = '2026-11-01T02:47:00+0100'
@@ -134,3 +135,56 @@ def test_cli_exit_code(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         cli.main(['sync'])
     assert exc.value.code == 1
+
+
+def test_rerun_retries_a_game_whose_rising_failed(conn, tmp_path, fake, sleeps, monkeypatch):
+    from pulse import sync
+    real = sync.compute_rising
+
+    def broken(conn, game, as_of):
+        if game == 'pokemon':
+            raise RuntimeError('statement timeout')
+        return real(conn, game, as_of)
+
+    monkeypatch.setattr(sync, 'compute_rising', broken)
+    assert run(conn, tmp_path, fake, sleeps) is False
+    assert runs(conn, 'pokemon') == [('failed',)] * 4
+
+    monkeypatch.setattr(sync, 'compute_rising', real)
+    fake.calls.clear()
+    assert run(conn, tmp_path, fake, sleeps) is True
+    assert runs(conn, 'pokemon')[-1] == ('ok',)
+    assert all(str(game('pokemon').cardmarket_id) in url.rsplit('_', 1)[-1] for url in fake.calls)
+    assert conn.execute("SELECT count(*) FROM price WHERE game = 'pokemon'").fetchone()[0] == 2
+
+
+def test_partial_failure_rerun_only_fetches_missing_game(conn, tmp_path, fake, sleeps):
+    fake.errors[fake.guide_url('onepiece')] = httpx.ConnectError('down')
+    assert run(conn, tmp_path, fake, sleeps) is False
+    del fake.errors[fake.guide_url('onepiece')]
+    fake.calls.clear()
+    assert run(conn, tmp_path, fake, sleeps) is True
+    assert {url.rsplit('_', 1)[-1] for url in fake.calls} == {'18.json'}
+
+
+def test_reimport_replaces_wrong_prices(conn, tmp_path, fake, sleeps):
+    run(conn, tmp_path, fake, sleeps)
+    conn.execute("UPDATE price SET trend = 999 WHERE game = 'magic'")
+    conn.commit()
+    reimport(conn, game('magic'), TODAY, tmp_path)
+    assert conn.execute("SELECT trend FROM price WHERE game = 'magic' AND id_product = 1").fetchone()[0] == Decimal('1.50')
+
+
+def test_reimport_of_an_older_day_keeps_current_card_names(conn, tmp_path, fake, sleeps):
+    run(conn, tmp_path, fake, sleeps)
+    older = TODAY - timedelta(days=3)
+    for kind in ('price_guide', 'products_singles'):
+        payload = json.loads(gzip.decompress((tmp_path / 'magic' / '2026-11-01' / f'{kind}.json.gz').read_bytes()))
+        if kind == 'price_guide':
+            payload['createdAt'] = '2026-10-29T02:47:00+0100'
+        else:
+            payload['products'][0]['name'] = 'Old name'
+        archive(tmp_path, 'magic', older, kind, payload)
+    reimport(conn, game('magic'), older, tmp_path)
+    assert conn.execute("SELECT name FROM card WHERE game = 'magic' AND id_product = 1").fetchone()[0] == 'One'
+    assert conn.execute("SELECT count(*) FROM price WHERE game = 'magic' AND day = %s", (older,)).fetchone()[0] == 2

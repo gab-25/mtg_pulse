@@ -14,8 +14,9 @@ def _copy(conn, table, columns, rows):
             copy.write_row(row)
 
 
-def upsert_cards(conn, game, cards):
-    """Insert or update the game's cards; unknown expansions get a row with no name."""
+def upsert_cards(conn, game, cards, update=True):
+    """Insert the game's cards, updating existing ones unless update is False; unknown expansions get a
+    row with no name."""
     conn.execute(
         'CREATE TEMP TABLE IF NOT EXISTS card_in (LIKE card INCLUDING DEFAULTS) ON COMMIT DELETE ROWS'
     )
@@ -29,8 +30,12 @@ def upsert_cards(conn, game, cards):
     conn.execute(
         f'INSERT INTO card (game, {", ".join(CARD_COLUMNS)}) '
         f'SELECT DISTINCT ON (id_product) game, {", ".join(CARD_COLUMNS)} FROM card_in '
-        'ON CONFLICT (game, id_product) DO UPDATE SET name = EXCLUDED.name, id_expansion = EXCLUDED.id_expansion, '
-        'id_metacard = EXCLUDED.id_metacard, date_added = EXCLUDED.date_added'
+        + (
+            'ON CONFLICT (game, id_product) DO UPDATE SET name = EXCLUDED.name, id_expansion = EXCLUDED.id_expansion, '
+            'id_metacard = EXCLUDED.id_metacard, date_added = EXCLUDED.date_added'
+            if update
+            else 'ON CONFLICT DO NOTHING'
+        )
     )
     return len(cards)
 
@@ -51,6 +56,13 @@ def insert_prices(conn, game, day, prices):
 
 def has_prices(conn, game, day):
     return conn.execute('SELECT EXISTS (SELECT 1 FROM price WHERE game = %s AND day = %s)', (game, day)).fetchone()[0]
+
+
+def imported(conn, game, day):
+    """Whether a sync finished the whole import (prices, rising, names) of the game for that day."""
+    return conn.execute(
+        "SELECT EXISTS (SELECT 1 FROM import_run WHERE game = %s AND guide_date = %s AND status = 'ok')", (game, day)
+    ).fetchone()[0]
 
 
 def log_run(conn, game, attempt, started_at, status, guide_date=None, cards=None, prices=None, error=None):

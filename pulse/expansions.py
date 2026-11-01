@@ -10,32 +10,34 @@ import re
 from collections import Counter, defaultdict
 from importlib.resources import files
 
-SUFFIXES = sorted(
-    [
-        'Booster Box Case', 'Booster Box', 'Collector Booster', 'Set Booster', 'Play Booster',
-        'Draft Booster', 'Sleeved Booster', 'Dash Pack', 'Booster', 'Display', 'Case', 'Bundle',
-        'Elite Trainer Box', 'Prerelease Pack', 'Prerelease Kit', 'Pre-Rift Event Kit', 'Vault',
-        'Theme Deck', 'Starter Deck', 'Fat Pack', 'Tin', 'Pack', 'Box',
-    ],
-    key=len,
-    reverse=True,
-)
-SUFFIX_RE = re.compile(r'(?:^|\s+)(?:' + '|'.join(re.escape(s) for s in SUFFIXES) + r')$', re.IGNORECASE)
-PARENTHETICAL_RE = re.compile(r'\s*\([^)]*\)\s*$')
+# Trailing words that name the product, not the expansion ("Draft Booster Box", "Pre-Rift Event Kit").
+PRODUCT_WORDS = {
+    'booster', 'boosters', 'box', 'boxes', 'case', 'display', 'draft', 'set', 'collector', 'play',
+    'sleeved', 'bundle', 'pack', 'packs', 'dash', 'tin', 'vault', 'deck', 'theme', 'fat', 'kit',
+    'prerelease', 'pre-rift', 'event', 'elite', 'trainer',
+}
+PARENTHETICAL_RE = re.compile(r'\(([^)]*)\)')
+PACKAGING_RE = re.compile(r'^\d+x\b', re.IGNORECASE)
 
 
-def strip_product(name):
-    name = PARENTHETICAL_RE.sub('', name)
-    while True:
-        stripped = SUFFIX_RE.sub('', name)
-        if stripped == name:
-            return name.strip()
-        name = stripped
+def is_packaging(note):
+    """"12x Booster Box" describes the package; "Non-English" or "Pre-Errata" tells editions apart."""
+    words = note.lower().split()
+    return bool(PACKAGING_RE.match(note.strip())) or all(w in PRODUCT_WORDS for w in words)
 
 
 def candidate(name):
-    """"Vendetta: Pre-Rift Event Kit" -> "Vendetta"; a generic prefix ("Starter Deck: Blue Buggy") is kept whole."""
-    return strip_product(name.split(':', 1)[0]) or strip_product(name)
+    """Drop the trailing product words and packaging notes, keep edition notes:
+    "Innistrad: Crimson Vow Draft Booster Box" -> "Innistrad: Crimson Vow",
+    "Vendetta: Pre-Rift Event Kit" -> "Vendetta",
+    "Romance Dawn Booster (Non-English)" -> "Romance Dawn (Non-English)".
+    Empty when nothing but product words is left."""
+    notes = [n.strip() for n in PARENTHETICAL_RE.findall(name) if not is_packaging(n)]
+    words = PARENTHETICAL_RE.sub(' ', name).split()
+    while words and words[-1].lower().rstrip(':-') in PRODUCT_WORDS:
+        words.pop()
+    base = ' '.join(words).rstrip(' :-')
+    return ' '.join([base, *(f'({n})' for n in notes)]) if base else ''
 
 
 def derive_names(nonsingles):

@@ -69,12 +69,12 @@
         },
         "query": {
           "refId": "card",
-          "rawSql": "SELECT c.name || coalesce(' · ' || coalesce(e.name, '#' || c.id_expansion), '') AS __text, c.id_product AS __value\nFROM card c\nLEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\nWHERE c.game = '$game' AND strpos(lower(c.name), lower(${search:sqlstring})) > 0\nORDER BY 1, 2\nLIMIT 200",
+          "rawSql": "SELECT label || CASE WHEN count(*) OVER (PARTITION BY label) > 1 THEN ' · #' || id_product ELSE '' END AS __text,\n       id_product AS __value\nFROM (\n  SELECT c.name || coalesce(' · ' || coalesce(e.name, '#' || c.id_expansion), '') AS label, c.id_product\n  FROM card c\n  LEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\n  WHERE c.game = '$game'\n    AND (strpos(lower(c.name), lower(${search:sqlstring})) > 0 OR c.id_product = nullif('$card', '')::int)\n) cards\nORDER BY 1, 2\nLIMIT 200",
           "editorMode": "code",
           "format": "table",
           "rawQuery": true
         },
-        "definition": "SELECT c.name || coalesce(' · ' || coalesce(e.name, '#' || c.id_expansion), '') AS __text, c.id_product AS __value\nFROM card c\nLEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\nWHERE c.game = '$game' AND strpos(lower(c.name), lower(${search:sqlstring})) > 0\nORDER BY 1, 2\nLIMIT 200",
+        "definition": "SELECT label || CASE WHEN count(*) OVER (PARTITION BY label) > 1 THEN ' · #' || id_product ELSE '' END AS __text,\n       id_product AS __value\nFROM (\n  SELECT c.name || coalesce(' · ' || coalesce(e.name, '#' || c.id_expansion), '') AS label, c.id_product\n  FROM card c\n  LEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\n  WHERE c.game = '$game'\n    AND (strpos(lower(c.name), lower(${search:sqlstring})) > 0 OR c.id_product = nullif('$card', '')::int)\n) cards\nORDER BY 1, 2\nLIMIT 200",
         "refresh": 1,
         "sort": 0,
         "multi": false,
@@ -224,7 +224,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest AS (\n  SELECT day, trend FROM price WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL ORDER BY day DESC LIMIT 1\n)\nSELECT (l.trend - p.trend) / nullif(p.trend, 0) AS \"Change 7 days\"\nFROM latest l\nJOIN price p ON p.game = '$game' AND p.id_product = nullif('$card', '')::int AND p.day = l.day - 7"
+          "rawSql": "WITH latest AS (\n  SELECT day, trend FROM price WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL ORDER BY day DESC LIMIT 1\n)\nSELECT (l.trend - p.trend) / nullif(p.trend, 0) AS \"Change 7 days\"\nFROM latest l\nCROSS JOIN LATERAL (\n  SELECT trend FROM price\n  WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL AND day <= l.day - 7\n  ORDER BY day DESC\n  LIMIT 1\n) p"
         }
       ],
       "fieldConfig": {
@@ -292,7 +292,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "WITH latest AS (\n  SELECT day, trend FROM price WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL ORDER BY day DESC LIMIT 1\n)\nSELECT (l.trend - p.trend) / nullif(p.trend, 0) AS \"Change 30 days\"\nFROM latest l\nJOIN price p ON p.game = '$game' AND p.id_product = nullif('$card', '')::int AND p.day = l.day - 30"
+          "rawSql": "WITH latest AS (\n  SELECT day, trend FROM price WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL ORDER BY day DESC LIMIT 1\n)\nSELECT (l.trend - p.trend) / nullif(p.trend, 0) AS \"Change 30 days\"\nFROM latest l\nCROSS JOIN LATERAL (\n  SELECT trend FROM price\n  WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL AND day <= l.day - 30\n  ORDER BY day DESC\n  LIMIT 1\n) p"
         }
       ],
       "fieldConfig": {

@@ -12,7 +12,7 @@ from .cardmarket import fetch_json, guide_date, parse_prices, parse_products
 from .config import ATTEMPTS, GAMES, NONSINGLES_URL, PRICE_GUIDE_URL, RETRY_SECONDS, SINGLES_URL
 from .expansions import refresh_expansions
 from .rising import compute_rising
-from .store import has_prices, insert_prices, log_run, upsert_cards
+from .store import imported, insert_prices, log_run, upsert_cards
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +44,15 @@ def read_archive(data_dir, game, day, kind):
     return json.loads(gzip.decompress(archive_path(data_dir, game, day, kind).read_bytes()))
 
 
-def store(conn, game, guide, products):
-    """Write one day's cards and prices in a single transaction."""
+def store(conn, game, guide, products, replace=False, update_cards=True):
+    """Write one day's cards and prices in a single transaction; replace drops that day's prices first."""
     day = guide_date(guide)
     cards = parse_products(products)
     prices = parse_prices(guide, game, {c.id_product for c in cards})
     with conn.transaction():
-        upsert_cards(conn, game.key, cards)
+        upsert_cards(conn, game.key, cards, update=update_cards)
+        if replace:
+            conn.execute('DELETE FROM price WHERE game = %s AND day = %s', (game.key, day))
         inserted = insert_prices(conn, game.key, day, prices)
     conn.commit()
     # Fresh statistics: without them the rising query that follows can pick a plan that never ends.
@@ -84,8 +86,9 @@ def import_game(conn, game, today, data_dir, fetch=fetch_json):
 
 
 def sync_all(conn, today, data_dir, games=GAMES, fetch=fetch_json, sleep=time.sleep):
-    """Import today's prices for every game not imported yet. True when all games are present."""
-    pending = [g for g in games if not has_prices(conn, g.key, today)]
+    """Import today's prices for every game not fully imported yet. True when all games are done."""
+    pending = [g for g in games if not imported(conn, g.key, today)]
+    conn.commit()
     for attempt in range(1, ATTEMPTS + 1):
         failed = []
         for game in pending:
@@ -111,12 +114,15 @@ def sync_all(conn, today, data_dir, games=GAMES, fetch=fetch_json, sleep=time.sl
 
 
 def reimport(conn, game, day, data_dir):
-    """Import an archived day again, without downloading anything."""
-    result = store(conn, game, read_archive(data_dir, game.key, day, 'price_guide'),
-                   read_archive(data_dir, game.key, day, 'products_singles'))
+    """Import an archived day again, replacing that day's prices, without downloading anything.
+
+    Card names are only updated, and rising only recomputed, when the day is the latest one stored."""
     latest = conn.execute('SELECT max(day) FROM price WHERE game = %s', (game.key,)).fetchone()[0]
-    if latest == day:
+    is_latest = latest is None or day >= latest
+    result = store(conn, game, read_archive(data_dir, game.key, day, 'price_guide'),
+                   read_archive(data_dir, game.key, day, 'products_singles'), replace=True, update_cards=is_latest)
+    if is_latest:
         compute_rising(conn, game.key, day)
-    if archive_path(data_dir, game.key, day, 'products_nonsingles').exists():
+    if is_latest and archive_path(data_dir, game.key, day, 'products_nonsingles').exists():
         refresh_names(conn, game, day, data_dir, lambda: read_archive(data_dir, game.key, day, 'products_nonsingles'))
     return result

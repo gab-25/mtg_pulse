@@ -60,3 +60,27 @@ def test_generic_prefix_keeps_the_part_after_colon():
         (6150, 'Starter Deck: Blue Buggy Deck Pack', 'One Piece Preconstructed Decks'),
     ))
     assert names == {6150: 'Starter Deck: Blue Buggy'}
+
+
+def test_names_after_colon_are_kept():
+    names = derive_names(sealed(
+        (1, 'Innistrad: Crimson Vow Draft Booster Box', 'Magic Display'),
+        (1, 'Innistrad: Crimson Vow Set Booster', 'Magic Booster'),
+        (2, 'Innistrad: Midnight Hunt Draft Booster', 'Magic Booster'),
+        (3, 'From the Vault: Dragons', 'MtG Set'),
+        (4, 'Booster Box Case (6x Origins Booster Box)', 'Riftbound Display'),
+    ))
+    assert names[1] == 'Innistrad: Crimson Vow'
+    assert names[2] == 'Innistrad: Midnight Hunt'
+    assert names[3] == 'From the Vault: Dragons'
+
+
+def test_edition_markers_in_parentheses_are_kept():
+    names = derive_names(sealed(
+        (5229, 'Romance Dawn Booster Box Case (12x Booster Box)', 'One Piece Booster Boxes'),
+        (5229, 'Romance Dawn Booster', 'One Piece Booster'),
+        (5484, 'Romance Dawn Booster Box Case (12x Booster Box) (Non-English)', 'One Piece Booster Boxes'),
+        (5484, 'Romance Dawn Booster (Non-English)', 'One Piece Booster'),
+        (5624, 'Romance Dawn Sleeved Booster (Pre-Errata)', 'One Piece Booster'),
+    ))
+    assert names == {5229: 'Romance Dawn', 5484: 'Romance Dawn (Non-English)', 5624: 'Romance Dawn (Pre-Errata)'}
