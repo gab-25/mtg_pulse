@@ -75,14 +75,15 @@ def seed_cards(conn, game='riftbound'):
     conn.execute("UPDATE expansion SET name = 'Origins' WHERE id_expansion = 6286")
 
 
-@pytest.mark.parametrize('name', ['rising.json'])
+@pytest.mark.parametrize('name', ['rising.json', 'card-detail.json'])
 def test_queries_run_on_empty_db(conn, name):
     dashboard = load(name)
     variables = {**RISING_DEFAULTS, 'search': '', 'card': '0'}
     for title, sql in panel_queries(dashboard):
         conn.execute(render(sql, **variables)).fetchall()
-    _, rows = run_panel(conn, dashboard, 'Rising cards', **RISING_DEFAULTS)
-    assert rows == []
+    if name == 'rising.json':
+        _, rows = run_panel(conn, dashboard, 'Rising cards', **RISING_DEFAULTS)
+        assert rows == []
 
 
 def test_rising_empty_message():
@@ -145,4 +146,56 @@ def test_dashboards_use_pulse_datasource_and_english():
                 assert var['datasource']['uid'] == 'pulse'
         text = path.read_text()
         assert 'Gioco' not in text and 'Finestra' not in text
-    assert 'rising' in uids
+    assert uids == {'rising', 'card-detail'}
+
+
+def card_options(conn, search, game='magic'):
+    dashboard = load('card-detail.json')
+    [var] = [v for v in dashboard['templating']['list'] if v['name'] == 'card']
+    sql = var['query']['rawSql'] if isinstance(var['query'], dict) else var['query']
+    return conn.execute(render(sql, game=game, search=search)).fetchall()
+
+
+def test_card_search_handles_quotes_and_percent(conn):
+    upsert_cards(conn, 'magic', [CardRow(1, "Gaea's Cradle", 10, None, None), CardRow(2, '100% Pure', None, None, None)])
+    conn.execute("UPDATE expansion SET name = 'Urza''s Saga' WHERE id_expansion = 10")
+    assert card_options(conn, "gaea's") == [("Gaea's Cradle · Urza's Saga", 1)]
+    assert card_options(conn, '100%') == [('100% Pure', 2)]
+    assert {v for _, v in card_options(conn, '')} == {1, 2}
+    assert card_options(conn, 'cradle', game='pokemon') == []
+
+
+def test_card_detail_prices_and_changes(conn):
+    upsert_cards(conn, 'magic', [CardRow(1, 'Card', None, None, None), CardRow(2, 'Other', None, None, None)])
+    for day, trend in [(AS_OF - timedelta(days=30), '8'), (AS_OF - timedelta(days=7), '10'),
+                       (AS_OF - timedelta(days=1), '11'), (AS_OF, '12')]:
+        insert_prices(conn, 'magic', day, [PriceRow(1, trend=Decimal(trend), low=Decimal('9'), trend_foil=Decimal('30'))])
+        insert_prices(conn, 'magic', day, [PriceRow(2, trend=Decimal('99'))])
+    dashboard = load('card-detail.json')
+    variables = {'game': 'magic', 'card': '1', 'search': ''}
+    assert run_panel(conn, dashboard, 'Trend', **variables)[1] == [(Decimal('12.00'),)]
+    assert run_panel(conn, dashboard, 'Low', **variables)[1] == [(Decimal('9.00'),)]
+    assert float(run_panel(conn, dashboard, 'Change 7 days', **variables)[1][0][0]) == pytest.approx(0.2)
+    assert float(run_panel(conn, dashboard, 'Change 30 days', **variables)[1][0][0]) == pytest.approx(0.5)
+    columns, rows = run_panel(conn, dashboard, 'Prices', **variables)
+    assert columns[0] == 'time' and len(rows) == 4 and dict(zip(columns, rows[-1]))['Trend'] == Decimal('12.00')
+    columns, rows = run_panel(conn, dashboard, 'Prices (foil)', **variables)
+    assert dict(zip(columns, rows[-1]))['Trend'] == Decimal('30.00')
+    columns, rows = run_panel(conn, dashboard, 'Latest daily changes', **variables)
+    latest = dict(zip(columns, rows[0]))
+    assert latest['Date'] == AS_OF and latest['Change'] == Decimal('1.00')
+    assert float(latest['Change %']) == pytest.approx(1 / 11)
+
+
+def test_card_detail_without_a_card_selected(conn):
+    dashboard = load('card-detail.json')
+    for title, sql in panel_queries(dashboard):
+        conn.execute(render(sql, game='magic', card='', search='')).fetchall()
+
+
+def test_rising_link_targets_card_detail():
+    table = panel(load('rising.json'), 'Rising cards')
+    links = [prop['value'] for o in table['fieldConfig']['overrides'] for prop in o['properties'] if prop['id'] == 'links']
+    url = links[0][0]['url']
+    assert url.startswith('/d/card-detail/') and 'var-card=${__data.fields.id_product}' in url
+    assert 'var-game=${game}' in url and 'var-search=' in url
