@@ -1,0 +1,35 @@
+"""Command line: `python -m pulse sync` (the daily run) and `python -m pulse reimport`."""
+
+import argparse
+import logging
+import sys
+from datetime import date, datetime
+
+from .config import BERLIN, GAMES, game, load_settings
+from .db import apply_schema, connect
+from .sync import reimport, sync_all
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog='pulse')
+    commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('sync', help="import today's prices for every game, retrying failures")
+    again = commands.add_parser('reimport', help='import an archived day again')
+    again.add_argument('--game', required=True, choices=[g.key for g in GAMES])
+    again.add_argument('--date', required=True, type=date.fromisoformat)
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s', stream=sys.stdout)
+    settings = load_settings()
+    conn = connect(settings.database_url)
+    apply_schema(conn)
+
+    if args.command == 'sync':
+        ok = sync_all(conn, datetime.now(BERLIN).date(), settings.data_dir)
+        sys.exit(0 if ok else 1)
+    result = reimport(conn, game(args.game), args.date, settings.data_dir)
+    logging.info('%s: reimported %d prices for %s', result.game, result.prices, result.day)
+
+
+if __name__ == '__main__':
+    main()

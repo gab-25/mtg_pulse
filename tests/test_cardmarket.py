@@ -66,3 +66,8 @@ def test_fetch_json_retries_5xx_not_4xx(monkeypatch):
     with pytest.raises(httpx.HTTPStatusError):
         cardmarket.fetch_json('https://example.test/b.json')
     assert len(calls) == 1
+
+
+def test_parse_products_treats_zero_date_as_missing():
+    [card] = parse_products({'products': [{'idProduct': 1, 'name': 'Weedle', 'dateAdded': '0000-00-00 00:00:00'}]})
+    assert card.date_added is None

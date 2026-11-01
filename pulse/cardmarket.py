@@ -73,6 +73,14 @@ def to_decimal(value):
     return None if value is None else Decimal(str(value))
 
 
+def parse_date_added(value):
+    """Cardmarket's dateAdded; missing or unparseable values (e.g. '0000-00-00 00:00:00') become None."""
+    try:
+        return datetime.strptime(value, '%Y-%m-%d %H:%M:%S').replace(tzinfo=BERLIN)
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_products(products):
     return [
         CardRow(
@@ -80,9 +88,7 @@ def parse_products(products):
             name=p['name'],
             id_expansion=p.get('idExpansion'),
             id_metacard=p.get('idMetacard'),
-            date_added=datetime.strptime(p['dateAdded'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=BERLIN)
-            if p.get('dateAdded')
-            else None,
+            date_added=parse_date_added(p.get('dateAdded')),
         )
         for p in products['products']
     ]
