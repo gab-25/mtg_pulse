@@ -79,10 +79,10 @@ about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
 
 - A new, empty PostgreSQL database with the TimescaleDB extension. The sync applies the Alembic
   migrations on every run.
-- The read-only `grafana_reader` role: the migrations create it when `TCG_PULSE_DB_READER_PASSWORD` is set
-  and the sync's database user may create roles (`CREATEROLE`). Otherwise create it once by hand,
-  `CREATE ROLE grafana_reader LOGIN PASSWORD '...';`, and run the sync: the migrations only grant it read
-  access then.
+- The migrations also create the read-only `grafana_reader` role, with `TCG_PULSE_DB_READER_PASSWORD`.
+  Only if the sync's database user may not create roles (a managed database, or a deliberately
+  restricted user), create it once by hand — `CREATE ROLE grafana_reader LOGIN PASSWORD '...';` — and
+  the migrations just grant it read access.
 - Run the image (`ghcr.io/<owner>/tcg-pulse`, default command `python -m tcg_pulse sync`) once a day with
   `DATABASE_URL` (and `TCG_PULSE_DB_READER_PASSWORD`, see above) set and a persistent volume on `/app/data`.
 - Run Grafana with the files in `grafana/provisioning` mounted on `/etc/grafana/provisioning`, the
