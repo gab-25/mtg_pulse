@@ -14,19 +14,7 @@
     "from": "now-90d",
     "to": "now"
   },
-  "links": [
-    {
-      "title": "Rising",
-      "type": "link",
-      "url": "/d/rising/rising",
-      "icon": "arrow-left",
-      "keepTime": false,
-      "includeVars": false,
-      "targetBlank": false,
-      "asDropdown": false,
-      "tags": []
-    }
-  ],
+  "links": [],
   "templating": {
     "list": [
       {

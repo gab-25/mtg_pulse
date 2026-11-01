@@ -329,3 +329,7 @@ def test_history_windows_ignore_the_averages(session):
 def test_window_offers_the_averages():
     [window] = [v for v in load('rising.json')['templating']['list'] if v['name'] == 'window']
     assert 'Cardmarket averages : 0' in window['query']
+
+
+def test_card_detail_has_no_dashboard_links():
+    assert load('card-detail.json')['links'] == []
