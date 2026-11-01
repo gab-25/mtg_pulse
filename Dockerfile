@@ -5,19 +5,19 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.25 /uv /usr/local/bin/uv
 ENV PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    DATA_DIR=/app/data
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
-COPY . .
-RUN DEBUG=1 SECRET_KEY=build DATABASE_URL=postgres://build@localhost/build python manage.py collectstatic --noinput \
-    && useradd --create-home --uid 1000 app \
-    && chmod +x docker-entrypoint.sh
+COPY tcg_pulse ./tcg_pulse
+RUN useradd --create-home --uid 1000 app \
+    && mkdir -p /app/data && chown app /app/data
 
 USER app
-EXPOSE 8000
-ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["gunicorn", "mtg_pulse.wsgi", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "60"]
+VOLUME /app/data
+# One sync of every game, then exit: non-zero when a game is still missing after its retries.
+CMD ["python", "-m", "tcg_pulse", "sync"]

@@ -1,95 +1,103 @@
-# mtg_pulse
+# TCG Pulse
 
-MTG Pulse tracks the Cardmarket price of every Magic single over time and flags the cards
-whose price is rising steadily.
+Tracks the Cardmarket price of every single card of four games over time and shows it in Grafana:
 
-- **Daily import** of Cardmarket's public price guide (~123k singles: trend, low, averages,
-  normal and foil) into a PostgreSQL + TimescaleDB hypertable — one row per card per day.
-- **Card page** with the card image, price history chart and recent price changes.
-- **Rising cards**: cards whose trend price rises steadily over 14/28/56 days. Each night the
-  app measures every card priced ≥ 1 € (gain, steadiness R², days with a price, rising
-  quarters, largest single-day jump); each user picks their own thresholds on their Profile
-  page. Defaults (≥ 5 €, +15%, no single-day spikes) live in `RISING` in `mtg_pulse/settings.py`.
-- **My cards**: each user records the printings they own (copies, normal or foil, condition,
-  price paid) and sees the collection valued at the latest trend price, with the change over the
-  last 7 days.
-- **Email alerts** (opt-in on the Profile page): after the nightly import, an email when a card
-  the user owns starts rising — passes their thresholds over their default window, in the finish
-  they own. Nothing is sent on days when no owned card starts rising.
+| Game | Cardmarket game id |
+|---|---|
+| Magic: The Gathering | 1 |
+| Pokémon | 6 |
+| One Piece | 18 |
+| Riftbound | 22 |
+
+- **Daily sync** (`python -m tcg_pulse sync`): downloads each game's public price guide and singles list
+  (trend, low, averages, normal and foil — Pokémon's "holo" is stored as foil) into a PostgreSQL +
+  TimescaleDB hypertable, one row per card per day. History starts from the first sync: Cardmarket
+  only publishes today's prices, so a day that is never imported is lost.
+- **Rising cards**: after each game's import, every card priced ≥ 1 € is measured over 14, 28 and 56 days
+  (gain, steadiness R², days with a price, rising quarters, largest single-day jump). The Rising
+  dashboard applies the thresholds (defaults: ≥ 5 €, +15 %, no single-day spikes).
+- **Expansion names** are derived from the names of Cardmarket's sealed products ("Origins Booster
+  Box" → "Origins"). Wrong or missing names can be fixed by hand in
+  [`tcg_pulse/expansion_overrides.json`](tcg_pulse/expansion_overrides.json) (`{"pokemon": {"6381": "Name"}}`);
+  an expansion with no name shows its id, e.g. `#5229`.
+- **Grafana** with two dashboards, provisioned from [`grafana/`](grafana/): **Rising** (pick the game,
+  window, normal/foil, thresholds) and **Card detail** (search a card, price history). Login only.
 
 ## Running locally
 
 ```sh
-cp .env.example .env          # set SECRET_KEY (50+ random chars; required when DEBUG=0)
-docker compose up -d --build  # db (TimescaleDB) + web on http://localhost:8000
-docker compose run --rm web python manage.py createsuperuser
+cp .env.example .env          # set the passwords
+docker compose up -d --build  # db, Grafana on http://localhost:3000, and one sync
+docker compose run --rm sync  # sync again
 ```
 
-Every page requires login; there is no sign-up, accounts are created with `createsuperuser`
-(or in `/admin/`). On the Profile page each user can change their name, email and password; the
-username stays with the administrator, and there is no password reset by email.
+Grafana reads the database as `grafana_reader`, a role that can only read. The sync's migrations create
+it with `TCG_PULSE_DB_READER_PASSWORD` when it is missing — also on a database volume that already
+exists — and let it read every table. Changing that password later is done by hand
+(`ALTER ROLE grafana_reader PASSWORD '...'`). `GRAFANA_ADMIN_PASSWORD` only applies when the Grafana
+volume is first created.
 
-### First data
+Rising needs a few weeks of history before it lists anything.
+
+## Database
+
+The tables are SQLAlchemy models in [`tcg_pulse/models.py`](tcg_pulse/models.py); the schema is managed with
+Alembic migrations in [`tcg_pulse/migrations`](tcg_pulse/migrations), which the sync applies on every run. After
+changing a model, generate a migration and review it (TimescaleDB specifics, such as the `price`
+hypertable, are written by hand in the migrations):
 
 ```sh
-docker compose run --rm web python manage.py import_cardmarket   # today's prices
-docker compose run --rm web python manage.py backfill_mtgjson    # optional: last ~90 days from MTGJSON (~5 min)
+DATABASE_URL=postgresql://tcg_pulse:tcg_pulse@localhost:5432/tcg_pulse uv run alembic revision --autogenerate -m "Describe the change"
 ```
 
-The backfill uses MTGJSON's Cardmarket prices, which are the Cardmarket trend price; it never
-overwrites prices imported from Cardmarket.
+A test fails when the models and the migrations disagree.
 
-## Daily import
-
-`python manage.py import_cardmarket` is a one-shot command meant to run once a day from an
-external scheduler at about **04:30 Europe/Rome**, after Cardmarket
-publishes the guide (~02:40).
-
-- Idempotent: running it twice on the same day changes nothing.
-- If today's guide is not published yet it refetches every 10 minutes, up to 6 times.
-- Exits non-zero on failure; every run is logged in `ImportRun` (visible in `/admin/`).
-- After importing it recomputes the rising measures, refreshes expansion names (MTGJSON)
-  and card images plus set names (Scryfall's daily bulk file, ~80 MB). Those two refreshes
-  are best-effort: a failure is logged and never fails the import.
-- Finally it sends the email alerts, also best-effort.
-
-Other commands: `compute_rising [--date YYYY-MM-DD]`, `send_rising_alerts [--date YYYY-MM-DD]`
-(default: the latest rising measures). Alerts are safe to rerun: each user gets at most one email
-per day, and a user whose email failed is retried. Every user and day is logged in `RisingAlert`
-(visible in `/admin/`); the command exits non-zero if any email failed.
-
-Card images are served by Scryfall (linked, not copied); the card page credits them.
-
-## Configuration
-
-| Variable | Meaning |
-|---|---|
-| `DATABASE_URL` | PostgreSQL URL; the database needs the TimescaleDB extension |
-| `SECRET_KEY` | Django secret key |
-| `DEBUG` | `1` for development, default off |
-| `ALLOWED_HOSTS` | comma-separated host names |
-| `CSRF_TRUSTED_ORIGINS` | comma-separated origins, e.g. `https://pulse.example.com` |
-| `SITE_URL` | public base URL for links in emails, e.g. `https://pulse.example.com` |
-| `EMAIL_HOST` | SMTP server, e.g. `smtp-relay.brevo.com`; unset: emails are printed to the console |
-| `EMAIL_PORT` | SMTP port, default `587` |
-| `EMAIL_USE_TLS` | `1` (default) for STARTTLS, `0` to disable |
-| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP login (on Brevo: the SMTP login and an SMTP key) |
-| `DEFAULT_FROM_EMAIL` | sender, e.g. `MTG Pulse <alerts@gabprojects.dev>`; its domain must be verified with the provider (DKIM, SPF, DMARC) |
-
-HTTPS is expected to be terminated by the reverse proxy in front of the app. With `DEBUG=0`
-session cookies are `Secure`.
-
-In compose, Postgres and the app are bound to `127.0.0.1` only: expose the app through the
-HTTPS proxy, never directly. The app has no login rate limiting of its own — configure it on
-the reverse proxy (e.g. limit `POST /accounts/login/` and `/admin/login/`).
-
-The TimescaleDB image is pinned (`2.30.2-pg17`). To upgrade, change the tag, then run
-`ALTER EXTENSION timescaledb UPDATE;` in the database.
-
-## Development
+Tests need a TimescaleDB database; each test works in its own throwaway schema, migrated with Alembic:
 
 ```sh
 docker compose up -d db
-uv sync
-uv run pytest
+uv run pytest               # TEST_DATABASE_URL defaults to the compose database
 ```
+
+## Daily sync
+
+`python -m tcg_pulse sync` is a one-shot command meant to run **once a day** from an external scheduler at
+about **04:30 Europe/Rome**, after Cardmarket publishes the guides (~02:45).
+
+- Each game is independent: one failing never stops the others.
+- A game that fails — network error, or a guide still dated yesterday — is retried up to **4 attempts,
+  15 minutes apart** (about 45 minutes at most).
+- The command exits non-zero if any game is still missing, so the scheduler can report it.
+- Idempotent: games fully imported today (prices, rising, names) are skipped, so a manual rerun only
+  does what is missing.
+- Every attempt is logged in the `import_run` table (shown on the Rising dashboard as "Last import").
+- Every downloaded file is kept gzipped under `DATA_DIR/<game>/<date>/` (a few MB a day). To import an
+  archived day again, replacing that day's prices (e.g. after fixing an import bug):
+  `python -m tcg_pulse reimport --game pokemon --date 2026-11-01`.
+
+## Production
+
+- A new, empty PostgreSQL database with the TimescaleDB extension. The sync applies the Alembic
+  migrations on every run.
+- The migrations also create the read-only `grafana_reader` role, with `TCG_PULSE_DB_READER_PASSWORD`.
+  Only if the sync's database user may not create roles (a managed database, or a deliberately
+  restricted user), create it once by hand — `CREATE ROLE grafana_reader LOGIN PASSWORD '...';` — and
+  the migrations just grant it read access.
+- Run the image (`ghcr.io/<owner>/tcg-pulse`, default command `python -m tcg_pulse sync`) once a day with
+  `DATABASE_URL` (and `TCG_PULSE_DB_READER_PASSWORD`, see above) set and a persistent volume on `/app/data`.
+- Run Grafana with the files in `grafana/provisioning` mounted on `/etc/grafana/provisioning`, the
+  dashboards in `grafana/dashboards` on `/var/lib/grafana/dashboards`, and the variables below.
+  Disable anonymous access and sign-up as `docker-compose.yml` does; HTTPS is terminated by the reverse
+  proxy in front of it.
+
+## Configuration
+
+| Variable | Used by | Meaning |
+|---|---|---|
+| `DATABASE_URL` | sync | PostgreSQL URL; the database needs the TimescaleDB extension |
+| `DATA_DIR` | sync | where downloaded files are archived (`/app/data` in the image) |
+| `POSTGRES_PASSWORD` | compose | password of the `tcg_pulse` database user |
+| `TCG_PULSE_DB_HOST`, `TCG_PULSE_DB_NAME` | Grafana | database host and name for the datasource |
+| `TCG_PULSE_DB_SSLMODE` | Grafana | SSL mode of the datasource connection (default `disable`) |
+| `TCG_PULSE_DB_READER_PASSWORD` | sync, Grafana | password of the `grafana_reader` role; the sync creates the role with it when missing |
+| `GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD` | compose | the Grafana login (`GF_SECURITY_ADMIN_*`) |

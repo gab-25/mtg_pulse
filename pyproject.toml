@@ -1,26 +1,21 @@
 [project]
-name = "mtg-pulse"
-version = "0.6.0"
-description = "Add your description here"
+name = "tcg-pulse"
+version = "0.1.0"
+description = "Daily Cardmarket prices for Magic, Pokémon, One Piece and Riftbound, shown in Grafana"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "dj-database-url>=3.1.2",
-    "django>=6.1.2",
-    "gunicorn>=26.2.0",
+    "alembic>=1.20.1",
     "httpx>=0.28.1",
-    "ijson>=3.6.0",
     "psycopg[binary]>=3.3.6",
-    "python-dotenv>=1.2.4",
-    "whitenoise>=6.12.0",
+    "sqlalchemy>=2.1.6",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
-    "pytest-django>=4.14.0",
 ]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "mtg_pulse.test_settings"
-python_files = ["test_*.py"]
+testpaths = ["tests"]
+pythonpath = ["."]

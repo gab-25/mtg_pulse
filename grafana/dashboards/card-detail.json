@@ -1,0 +1,608 @@
+{
+  "uid": "card-detail",
+  "title": "Card detail",
+  "editable": false,
+  "schemaVersion": 41,
+  "version": 1,
+  "tags": [
+    "tcg_pulse"
+  ],
+  "timezone": "browser",
+  "refresh": "",
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "links": [
+    {
+      "title": "Rising",
+      "type": "link",
+      "url": "/d/rising/rising",
+      "icon": "arrow-left",
+      "keepTime": false,
+      "includeVars": false,
+      "targetBlank": false,
+      "asDropdown": false,
+      "tags": []
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "game",
+        "label": "Game",
+        "type": "custom",
+        "query": "Magic: The Gathering : magic,Pokémon : pokemon,One Piece : onepiece,Riftbound : riftbound",
+        "current": {
+          "text": "Magic: The Gathering",
+          "value": "magic"
+        },
+        "options": [],
+        "multi": false,
+        "includeAll": false
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ]
+      },
+      {
+        "name": "card",
+        "label": "Card",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "tcg_pulse"
+        },
+        "query": {
+          "refId": "card",
+          "rawSql": "SELECT label || CASE WHEN count(*) OVER (PARTITION BY label) > 1 THEN ' · #' || id_product ELSE '' END AS __text,\n       id_product AS __value\nFROM (\n  SELECT c.name || coalesce(' · ' || coalesce(e.name, '#' || c.id_expansion), '') AS label, c.id_product\n  FROM card c\n  LEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\n  WHERE c.game = '$game'\n    AND (strpos(lower(c.name), lower(${search:sqlstring})) > 0 OR c.id_product = nullif('$card', '')::int)\n) cards\nORDER BY 1, 2\nLIMIT 200",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true
+        },
+        "definition": "SELECT label || CASE WHEN count(*) OVER (PARTITION BY label) > 1 THEN ' · #' || id_product ELSE '' END AS __text,\n       id_product AS __value\nFROM (\n  SELECT c.name || coalesce(' · ' || coalesce(e.name, '#' || c.id_expansion), '') AS label, c.id_product\n  FROM card c\n  LEFT JOIN expansion e ON e.game = c.game AND e.id_expansion = c.id_expansion\n  WHERE c.game = '$game'\n    AND (strpos(lower(c.name), lower(${search:sqlstring})) > 0 OR c.id_product = nullif('$card', '')::int)\n) cards\nORDER BY 1, 2\nLIMIT 200",
+        "refresh": 1,
+        "sort": 0,
+        "multi": false,
+        "includeAll": false,
+        "current": {},
+        "options": []
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Trend",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT trend AS \"Trend\"\nFROM price\nWHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL\nORDER BY day DESC\nLIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "noValue": "—"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Low",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT low AS \"Low\"\nFROM price\nWHERE game = '$game' AND id_product = nullif('$card', '')::int AND low IS NOT NULL\nORDER BY day DESC\nLIMIT 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "noValue": "—"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Change 7 days",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (\n  SELECT day, trend FROM price WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL ORDER BY day DESC LIMIT 1\n)\nSELECT (l.trend - p.trend) / nullif(p.trend, 0) AS \"Change 7 days\"\nFROM latest l\nCROSS JOIN LATERAL (\n  SELECT trend FROM price\n  WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL AND day <= l.day - 7\n  ORDER BY day DESC\n  LIMIT 1\n) p"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "decimals": 1,
+          "noValue": "—"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Change 30 days",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH latest AS (\n  SELECT day, trend FROM price WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL ORDER BY day DESC LIMIT 1\n)\nSELECT (l.trend - p.trend) / nullif(p.trend, 0) AS \"Change 30 days\"\nFROM latest l\nCROSS JOIN LATERAL (\n  SELECT trend FROM price\n  WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL AND day <= l.day - 30\n  ORDER BY day DESC\n  LIMIT 1\n) p"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 0
+              }
+            ]
+          },
+          "decimals": 1,
+          "noValue": "—"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "showPercentChange": false,
+        "wideLayout": true
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Prices",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT day::timestamp AS time, trend AS \"Trend\", low AS \"Low\", avg7 AS \"Avg 7 days\", avg30 AS \"Avg 30 days\"\nFROM price\nWHERE game = '$game' AND id_product = nullif('$card', '')::int AND $__timeFilter(day)\nORDER BY day"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trend"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Prices (foil)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT day::timestamp AS time, trend_foil AS \"Trend\", low_foil AS \"Low\", avg7_foil AS \"Avg 7 days\", avg30_foil AS \"Avg 30 days\"\nFROM price\nWHERE game = '$game' AND id_product = nullif('$card', '')::int AND $__timeFilter(day)\nORDER BY day"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyEUR",
+          "decimals": 2,
+          "custom": {
+            "lineWidth": 2,
+            "spanNulls": true,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trend"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Latest daily changes",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "tcg_pulse"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "tcg_pulse"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT day AS \"Date\", trend AS \"Trend\", trend - prev AS \"Change\", (trend - prev) / nullif(prev, 0) AS \"Change %\"\nFROM (\n  SELECT day, trend, lag(trend) OVER (ORDER BY day) AS prev\n  FROM price\n  WHERE game = '$game' AND id_product = nullif('$card', '')::int AND trend IS NOT NULL\n) d\nORDER BY day DESC\nLIMIT 30"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          },
+          "noValue": "No prices for this card yet."
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Date"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "time:YYYY-MM-DD"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Trend"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "Change.*"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Change"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyEUR"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Change %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    }
+  ]
+}
