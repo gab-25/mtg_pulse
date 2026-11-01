@@ -6,7 +6,7 @@ import pytest
 
 from tcg_pulse import cardmarket
 from tcg_pulse.cardmarket import guide_date, parse_prices, parse_products
-from tcg_pulse.config import BERLIN, game
+from tcg_pulse.config import CARDMARKET_TZ, game
 
 
 def guide(*entries, created='2026-11-01T02:47:00+0100'):
@@ -43,7 +43,7 @@ def test_parse_products():
     ]})
     zoro, bare = cards
     assert (zoro.id_product, zoro.name, zoro.id_expansion, zoro.id_metacard) == (690368, 'Roronoa Zoro (OP01-001)', 5229, 415369)
-    assert zoro.date_added.tzinfo == BERLIN and zoro.date_added.hour == 22
+    assert zoro.date_added.tzinfo == CARDMARKET_TZ and zoro.date_added.hour == 22
     assert bare.id_expansion is None and bare.date_added is None
 
 

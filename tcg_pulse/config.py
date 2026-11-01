@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-BERLIN = ZoneInfo('Europe/Berlin')
+# Cardmarket (Berlin) dates its files in its own local time: a guide's day and "today" are taken in it.
+CARDMARKET_TZ = ZoneInfo('Europe/Berlin')
 
 PRICE_GUIDE_URL = 'https://downloads.s3.cardmarket.com/productCatalog/priceGuide/price_guide_{id}.json'
 SINGLES_URL = 'https://downloads.s3.cardmarket.com/productCatalog/productList/products_singles_{id}.json'

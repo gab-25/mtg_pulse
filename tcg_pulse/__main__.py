@@ -5,7 +5,7 @@ import logging
 import sys
 from datetime import date, datetime
 
-from .config import BERLIN, GAMES, game, load_settings
+from .config import CARDMARKET_TZ, GAMES, game, load_settings
 from .db import connect, migrate
 from .sync import reimport, sync_all
 
@@ -25,7 +25,7 @@ def main(argv=None):
     migrate(session)
 
     if args.command == 'sync':
-        ok = sync_all(session, datetime.now(BERLIN).date(), settings.data_dir)
+        ok = sync_all(session, datetime.now(CARDMARKET_TZ).date(), settings.data_dir)
         sys.exit(0 if ok else 1)
     result = reimport(session, game(args.game), args.date, settings.data_dir)
     logging.info('%s: reimported %d prices for %s', result.game, result.prices, result.day)

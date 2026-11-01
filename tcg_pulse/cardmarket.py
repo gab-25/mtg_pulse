@@ -8,7 +8,7 @@ from decimal import Decimal
 
 import httpx
 
-from .config import BERLIN
+from .config import CARDMARKET_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def fetch_json(url):
 
 def guide_date(guide):
     created = datetime.strptime(guide['createdAt'], '%Y-%m-%dT%H:%M:%S%z')
-    return created.astimezone(BERLIN).date()
+    return created.astimezone(CARDMARKET_TZ).date()
 
 
 @dataclass
@@ -73,7 +73,7 @@ def to_decimal(value):
 def parse_date_added(value):
     """Cardmarket's dateAdded; missing or unparseable values (e.g. '0000-00-00 00:00:00') become None."""
     try:
-        return datetime.strptime(value, '%Y-%m-%d %H:%M:%S').replace(tzinfo=BERLIN)
+        return datetime.strptime(value, '%Y-%m-%d %H:%M:%S').replace(tzinfo=CARDMARKET_TZ)
     except (TypeError, ValueError):
         return None
 
